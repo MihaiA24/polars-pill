@@ -1,20 +1,25 @@
-#!/usr/bin/env zsh
-
-files=(
-   pandas_evaluation.py
-   eager_evaluation.py
-   lazy_evaluation.py
-   pyspark_evaluation.py
-)
-
+#!/bin/bash
 file_path_20M="data/2019-Oct-20M.csv"
 file_path="data/2019-Oct.csv"
+file_path_parquet="data/2019-Oct.parquet"
 
-# shellcheck disable=SC2128
-for script  in $files; do
-	echo "Running $script..."
+commands=(
+  "pandas_evaluation.py --file_path $file_path_20M"
+  "eager_evaluation.py --file_path $file_path_20M"
+  "eager_evaluation.py --file_path $file_path"
+  "eager_evaluation.py --file_path $file_path_parquet --file_type parquet"
+  "lazy_evaluation.py --file_path $file_path"
+  "lazy_evaluation.py --file_path $file_path_parquet --file_type parquet"
+  "pyspark_evaluation.py --file_path $file_path"
+  "pyspark_evaluation.py --file_path $file_path_parquet --file_type parquet"
+)
+
+rm benchmark.txt
+for command in "${commands[@]}"; do
+	echo "Running $command..."
 	start_time=$(date +%s.%N)
-	python "$script" $file_path
+  eval "python $command"
+#	echo "$script"
 	exit_code=$?
 	end_time=$(date +%s.%N)
 	duration=$(echo "$end_time - $start_time" | bc -l)
