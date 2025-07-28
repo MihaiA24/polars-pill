@@ -10,29 +10,41 @@ import glob
 parquet_list = glob.glob("data/nyc-taxi/green/*/*.parquet")
 for file in parquet_list:
     schema = pl.read_parquet_schema(file)
-    cast_schema = generate_polars_cast(schema, type="green")
+    schema["tpep_pickup_datetime"] = schema.pop("lpep_pickup_datetime")
+    schema["tpep_dropoff_datetime"] = schema.pop("lpep_dropoff_datetime")
+    schema["airport_fee"] = schema.pop("ehail_fee")
+    schema.pop("trip_type")
+    cast_schema = generate_polars_cast(schema)
     if cast_schema:
         print("Formating... ", file)
-        pl.read_parquet(file).with_columns(*cast_schema).write_parquet(file)
+        pl.read_parquet(file).drop("trip_type").rename(
+            {
+                "lpep_pickup_datetime": "tpep_pickup_datetime",
+                "lpep_dropoff_datetime": "tpep_dropoff_datetime",
+                "ehail_fee": "airport_fee",
+            }
+        ).with_columns(*cast_schema).write_parquet(file)
     else:
         print("Skipping... ", file)
 
 print("Merging green parquets...")
-pl.scan_parquet("data/nyc-taxi/green/*/*.parquet").sink_parquet("data/nyc-taxi/green/green.parquet")
+pl.scan_parquet("data/nyc-taxi/green/*/*.parquet").sink_parquet("data/nyc-taxi/green.parquet")
 
 parquet_list = glob.glob("data/nyc-taxi/yellow/*/*.parquet")
 for file in parquet_list:
     schema = pl.read_parquet_schema(file)
-    cast_schema = generate_polars_cast(schema, type="yellow")
+    cast_schema = generate_polars_cast(schema)
     if cast_schema:
         print("Formating... ", file)
         df = pl.read_parquet(file)
-        df = df.rename({"Airport_fee": "airport_fee"})  if "Airport_fee" in df.columns else df # Different name in multiple cols
+        # Different name in multiple cols
+        df = df.rename({"Airport_fee": "airport_fee"}) if "Airport_fee" in df.columns else df
         df.with_columns(*cast_schema).write_parquet(file)
     else:
         print("Skipping... ", file)
 print("Merging yellow parquets...")
-pl.scan_parquet("data/nyc-taxi/yellow/*/*.parquet").sink_parquet("data/nyc-taxi/yellow/yellow.parquet")
+pl.scan_parquet("data/nyc-taxi/yellow/*/*.parquet").sink_parquet("data/nyc-taxi/yellow.parquet")
+
 
 pl.scan_csv("data/2019-Nov.csv", schema=pl_schema).sink_parquet("data/2019-Nov.parquet")
 
