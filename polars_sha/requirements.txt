@@ -1,5 +1,5 @@
 polars
-maturin
+maturin[patchelf]
 ruff
 pytest
 mypy

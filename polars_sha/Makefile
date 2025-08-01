@@ -27,3 +27,5 @@ run: install
 run-release: install-release
 	source .venv/bin/activate && python run.py
 
+build-wheel:
+	source .venv/bin/activate && maturin build --release
