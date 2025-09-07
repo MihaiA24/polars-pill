@@ -28,6 +28,8 @@ pl_schema = {
     "user_session": pl.String(),
 }
 
+zone_schema = {"LocationID": pl.Int32, "Borough": pl.String, "Zone": pl.String, "service_zone": pl.String}
+
 spark_schema = StructType(
     [
         StructField("event_time", StringType(), nullable=False),
