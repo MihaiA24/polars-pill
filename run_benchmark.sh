@@ -3,9 +3,6 @@ ecom_path_20M="data/2019-Oct-20M.csv"
 ecom_path="data/2019-Oct.csv"
 ecom_path_parquet="data/2019-Oct.parquet"
 
-nyc_green_path="data/nyc-taxi/green.parquet"
-nyc_yellow_path="data/nyc-taxi/yellow.parquet"
-
 commands=(
   # "pandas_evaluation.py --file_path $ecom_path_20M"
   "polars_evaluation.py --file_path $ecom_path_20M --mode eager"
@@ -50,7 +47,6 @@ commands=(
 
 )
 
-rm -f benchmark.txt
 for command in "${commands[@]}"; do
 	echo "Running $command"
   SECONDS=0
@@ -65,3 +61,6 @@ for command in "${commands[@]}"; do
   fi
 done
 
+# Append benchmark to README.md
+python -c "from utils import append_benchmark_to_readme; append_benchmark_to_readme()"
+rm -f benchmark.txt

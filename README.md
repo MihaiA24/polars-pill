@@ -44,10 +44,10 @@ To install the polars plugins:
 
 These benchmarks are results from running them on a 12-core AMD Ryzen 9900X, 32GB RAM (32 GB SWAP) and a 16GB NVIDIA 5070Ti.
 
-If you have less than 32GB RAM, yellow trip data may not work due to RAM requirements or take a long amount of time. 
+If you have less than 32GB RAM, yellow trip data may not work due to RAM requirements or take a long amount of time.
 
+| Library          |       Duration (s) | CPU/GPU  | Engine       | Dataset                   | Query        |
+|------------------|--------------------|----------|--------------|---------------------------|--------------| 
+| Polars eager     |              0.625 | CPU      | streaming    | data/2019-Oct-20M.csv     | Simple       |
+| Polars eager     |              1.362 | CPU      | streaming    | data/2019-Oct.csv         | Simple       |
 
-| Order | Library | Result (m:s.ms) | Size | Options | Notes |
-|-------|---------|-----------------|------|---------|-------|
-|       |         |                 |      |         |       |
-| 1     | Polars  | ----            | 3    | Eager   |       |
