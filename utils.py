@@ -2,7 +2,7 @@ from pathlib import Path
 
 # Fixed column widths
 w_lib = 16
-w_time = 18
+w_time = 22
 w_cpu_gpu = 8
 w_engine = 12
 w_dataset = 25
@@ -36,9 +36,10 @@ def save_execution_time(library, duration, cpu_gpu, engine, dataset, execution_q
     is_new_file = not path.exists() or path.stat().st_size == 0
 
     header, separator = file_header()
-
+    if type(duration) is float:
+        duration = '{:.3f}'.format(duration)
     line = (
-        f"| {library:<{w_lib}} | {'{:.3f}'.format(duration):>{w_time}} | "
+        f"| {library:<{w_lib}} | {duration:>{w_time}} | "
         f"{cpu_gpu:<{w_cpu_gpu}} | {engine:<{w_engine}} | {dataset:<{w_dataset}} | {execution_query:<{w_query}} |\n"
     )
 

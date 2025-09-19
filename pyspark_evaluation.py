@@ -5,11 +5,12 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import avg, col, count, median, sum
 from pyspark.sql.types import TimestampType
 from pyspark.sql.window import Window
-from typing_extensions import Literal
+from typing import Literal
 
 from schemas import spark_schema
 from utils import save_execution_time
 
+start_time_init = datetime.now()
 spark = (
     SparkSession.builder.master("local[*]")
     .config("spark.executor.memory", "11g")
@@ -39,6 +40,8 @@ def ecommerce_execution(file_type: Literal["csv", "parquet"], file_path: str) ->
         df.write.mode("overwrite").parquet("data/out/pyspark_ecommerce")
         print("Job completed successfully!")
         duration = (datetime.now() - start_time).total_seconds()
+        total_duration = (datetime.now() - start_time_init).total_seconds()
+        duration = '{:.3f}'.format(duration) + " (Init: " + '{:.3f}'.format(total_duration) + ")"
     except Exception as e:
         duration = "Error"
     save_execution_time("PySpark", duration, "CPU", "lazy", file_path, "Simple")
@@ -94,6 +97,8 @@ def nyc_taxi_execution(
         # Write the result to parquet with Snappy compression (default in Spark)
         result.write.mode("overwrite").parquet("data/out/pyspark.parquet")
         duration = (datetime.now() - start_time).total_seconds()
+        total_duration = (datetime.now() - start_time_init).total_seconds()
+        duration = '{:.3f}'.format(duration) + " (Init: " + '{:.3f}'.format(total_duration) + ")"
     except Exception as e:
         print(e)
         duration = "Error"
