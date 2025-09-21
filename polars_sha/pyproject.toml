@@ -4,13 +4,21 @@ build-backend = "maturin"
 
 [project]
 name = "polars-sha"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 classifiers = [
   "Programming Language :: Rust",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dynamic = ["version"]
+dependencies = [
+    "maturin[patchelf]>=1.9.4",
+    "mypy>=1.14.1",
+    "polars>=1.20",
+    "pytest>=8.3.5",
+    "ruff>=0.13.1",
+]
+
 
 [tool.maturin]
 module-name = "polars_sha._internal"

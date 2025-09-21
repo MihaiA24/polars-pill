@@ -4,6 +4,9 @@ venv:
 	python3 -m venv .venv
 	.venv/bin/pip install -r requirements.txt
 
+venv-uv:
+	uv sync -U
+
 install:
 	unset CONDA_PREFIX && \
 	source .venv/bin/activate && maturin develop

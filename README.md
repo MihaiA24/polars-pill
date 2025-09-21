@@ -30,7 +30,8 @@ Sync all packages by running:
 To install the polars plugins:
     1. In the folder polars_sha (plugin folder) run: 
 ```shell
-    make build-wheel
+    make venv # First create the venv or make venv-uv
+    make build-wheel # Make the package as wheel
 ```
 . That will build the python wheel in path target/wheels
     2. Add the dependency in the root folder with uv as: 
