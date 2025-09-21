@@ -2,7 +2,7 @@ import polars as pl
 import polars.selectors as cs
 from schemas import pl_schema, generate_polars_cast
 import glob
-# pl.Config.set_engine_affinity("streaming")
+pl.Config.set_engine_affinity("streaming")
 # PREPROCESS FOR TALK
 
 

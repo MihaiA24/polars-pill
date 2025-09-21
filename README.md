@@ -39,6 +39,12 @@ To install the polars plugins:
     uv add polars_sha/target/wheels/name_of_wheel.whl # Change name_of_wheel.whl with the name of the wheel you just built
 ```
 
+## Spark setutp
+For Spark 4.0 Java 17 or 21 need to be installed:
+```shell
+    brew install temurin@17 # Open JDK 17 Temurin for MacOs via Homebrew
+    sudo apt install openjdk-17-jdk # Open JDK 17 for Debian-based Linux
+```
 
 ## Benchmarks
 

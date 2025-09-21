@@ -54,6 +54,8 @@ commands=(
   "python polars_evaluation.py --dataset_type nyc-yellow --engine streaming --gpu_engine True --execution_query complex"
 )
 
+[ -f "benchmark.txt" ] && rm "benchmark.txt" # Safe remove previous broken file if exists
+
 for command in "${commands[@]}"; do
 	echo "Running $command"
   SECONDS=0
