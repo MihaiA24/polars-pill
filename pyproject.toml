@@ -10,6 +10,7 @@ dependencies = [
     "pyarrow>=21.0.0",
     "pyspark>=4.0.0",
     "pandas>=2.2.3",
+    "pyiceberg[sql-sqlite]>=0.10.0",
 ]
 
 [dependency-groups]
