@@ -11,6 +11,8 @@ dependencies = [
     "pyspark>=4.0.0",
     "pandas>=2.2.3",
     "polars-sha",
+    "pyiceberg[sql-sqlite]>=0.10.0",
+    "pydantic < 2.12.0" # PyDantic 2.12.0 had issue when creating PyIceberg Tables
 ]
 
 [dependency-groups]
