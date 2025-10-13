@@ -37,7 +37,7 @@ def save_execution_time(library, duration, cpu_gpu, engine, dataset, execution_q
 
     header, separator = file_header()
     if type(duration) is float:
-        duration = '{:.3f}'.format(duration)
+        duration = "{:.3f}".format(duration)
     line = (
         f"| {library:<{w_lib}} | {duration:>{w_time}} | "
         f"{cpu_gpu:<{w_cpu_gpu}} | {engine:<{w_engine}} | {dataset:<{w_dataset}} | {execution_query:<{w_query}} |\n"

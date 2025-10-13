@@ -1,5 +1,6 @@
-# Ecommerce: https://www.kaggle.com/datasets/mkechinov/ecommerce-behavior-data-from-multi-category-store
 #!/bin/bash
+
+# Ecommerce: https://www.kaggle.com/datasets/mkechinov/ecommerce-behavior-data-from-multi-category-store
 mkdir data
 mkdir data/out
 curl -L -o data/ecommerce-behavior-data-from-multi-category-store.zip https://www.kaggle.com/api/v1/datasets/download/mkechinov/ecommerce-behavior-data-from-multi-category-store

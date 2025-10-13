@@ -41,7 +41,7 @@ def ecommerce_execution(file_type: Literal["csv", "parquet"], file_path: str) ->
         print("Job completed successfully!")
         duration = (datetime.now() - start_time).total_seconds()
         total_duration = (datetime.now() - start_time_init).total_seconds()
-        duration = '{:.3f}'.format(duration) + " (Init: " + '{:.3f}'.format(total_duration) + ")"
+        duration = "{:.3f}".format(duration) + " (Init: " + "{:.3f}".format(total_duration) + ")"
     except Exception as e:
         duration = "Error"
     save_execution_time("PySpark", duration, "CPU", "lazy", file_path, "Simple")
@@ -98,7 +98,7 @@ def nyc_taxi_execution(
         result.write.mode("overwrite").parquet("data/out/pyspark.parquet")
         duration = (datetime.now() - start_time).total_seconds()
         total_duration = (datetime.now() - start_time_init).total_seconds()
-        duration = '{:.3f}'.format(duration) + " (Init: " + '{:.3f}'.format(total_duration) + ")"
+        duration = "{:.3f}".format(duration) + " (Init: " + "{:.3f}".format(total_duration) + ")"
     except Exception as e:
         print(e)
         duration = "Error"
