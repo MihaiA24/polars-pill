@@ -1,7 +1,6 @@
 import argparse
 
 import polars as pl
-import rmm
 
 zone_schema = {"LocationID": pl.Int32, "Borough": pl.String, "Zone": pl.String, "service_zone": pl.String}
 
@@ -36,16 +35,24 @@ df = (
     )
 )
 
-df.sink_parquet("data/nyc-taxi/out/efficiency.parquet", engine=engine)  # Large data transformation
+# Every sink below is deferred (lazy=True) and executed together at the bottom, so the source
+# parquet is scanned once for all six outputs instead of once per sink.
+sinks = [df.sink_parquet("data/nyc-taxi/out/efficiency.parquet", mkdir=True, lazy=True)]
 
 
 # Efficiency by hour of the day
-df.with_columns(pl.col("tpep_pickup_datetime").dt.hour().alias("hour")).group_by("hour").agg(
-    pl.mean("revenue_per_minute").alias("avg_revenue_per_minute"),
-    pl.mean("speed_mph").alias("avg_speed_mph"),
-    pl.mean("efficiency_score").alias("avg_efficiency_score"),
-    pl.len().alias("trip_count"),
-).sort("avg_revenue_per_minute", descending=True).sink_csv("data/nyc-taxi/out/efficiency_by_hour.csv", engine=engine)
+sinks.append(
+    df.with_columns(pl.col("tpep_pickup_datetime").dt.hour().alias("hour"))
+    .group_by("hour")
+    .agg(
+        pl.mean("revenue_per_minute").alias("avg_revenue_per_minute"),
+        pl.mean("speed_mph").alias("avg_speed_mph"),
+        pl.mean("efficiency_score").alias("avg_efficiency_score"),
+        pl.len().alias("trip_count"),
+    )
+    .sort("avg_revenue_per_minute", descending=True)
+    .sink_csv("data/nyc-taxi/out/efficiency_by_hour.csv", mkdir=True, lazy=True)
+)
 
 
 # Join DF with zones
@@ -58,38 +65,57 @@ df = (
 
 
 ## Find most effective routes
-df.group_by(["PU_Zone", "DO_Zone"]).agg(
-    pl.mean("revenue_per_minute").alias("avg_revenue_per_minute"),
-    pl.mean("speed_mph").alias("avg_speed_mph"),
-    pl.len().alias("trip_count"),
-).sort("avg_revenue_per_minute", descending=True).sink_csv("data/nyc-taxi/out/efficiency_by_route.csv", engine=engine)
+sinks.append(
+    df.group_by(["PU_Zone", "DO_Zone"])
+    .agg(
+        pl.mean("revenue_per_minute").alias("avg_revenue_per_minute"),
+        pl.mean("speed_mph").alias("avg_speed_mph"),
+        pl.len().alias("trip_count"),
+    )
+    .sort("avg_revenue_per_minute", descending=True)
+    .sink_csv("data/nyc-taxi/out/efficiency_by_route.csv", mkdir=True, lazy=True)
+)
 
 
 ## Borough pick up
-df.group_by("PU_Borough").agg(
-    pl.len().alias("trip_count"),
-    pl.sum("fare_amount").alias("total_revenue"),
-    pl.mean("fare_amount").alias("avg_fare"),
-    pl.mean("trip_distance").alias("avg_distance"),
-    pl.mean("tip_amount").alias("avg_tip"),
-).with_columns((pl.col("trip_count") / 8 * 100).alias("percentage_of_trips")).sort(
-    "trip_count", descending=True
-).sink_csv("data/nyc-taxi/out/efficiency_by_borough.csv", engine=engine)
+sinks.append(
+    df.group_by("PU_Borough")
+    .agg(
+        pl.len().alias("trip_count"),
+        pl.sum("fare_amount").alias("total_revenue"),
+        pl.mean("fare_amount").alias("avg_fare"),
+        pl.mean("trip_distance").alias("avg_distance"),
+        pl.mean("tip_amount").alias("avg_tip"),
+    )
+    .with_columns((pl.col("trip_count") / 8 * 100).alias("percentage_of_trips"))
+    .sort("trip_count", descending=True)
+    .sink_csv("data/nyc-taxi/out/efficiency_by_borough.csv", mkdir=True, lazy=True)
+)
 
 ## Borough dropoff
-df.group_by("DO_Borough").agg(
-    pl.len().alias("trip_count"),
-    pl.sum("fare_amount").alias("total_revenue"),
-    pl.mean("fare_amount").alias("avg_fare"),
-    pl.mean("trip_distance").alias("avg_distance"),
-    pl.mean("tip_amount").alias("avg_tip"),
-).sort("trip_count", descending=True).sink_csv("data/nyc-taxi/out/efficiency_by_borough_dropoff.csv", engine=engine)
-
-df.group_by("PU_Borough").agg(
-    pl.mean("trip_duration_minutes").alias("avg_duration_minutes"),
-    pl.mean("revenue_per_minute").alias("avg_revenue_per_minute"),
-    pl.mean("speed_mph").alias("avg_speed_mph"),
-    pl.len().alias("trip_count"),
-).sort("avg_revenue_per_minute", descending=True).sink_csv(
-    "data/nyc-taxi/out/efficiency_by_borough_duration.csv", engine=engine
+sinks.append(
+    df.group_by("DO_Borough")
+    .agg(
+        pl.len().alias("trip_count"),
+        pl.sum("fare_amount").alias("total_revenue"),
+        pl.mean("fare_amount").alias("avg_fare"),
+        pl.mean("trip_distance").alias("avg_distance"),
+        pl.mean("tip_amount").alias("avg_tip"),
+    )
+    .sort("trip_count", descending=True)
+    .sink_csv("data/nyc-taxi/out/efficiency_by_borough_dropoff.csv", mkdir=True, lazy=True)
 )
+
+sinks.append(
+    df.group_by("PU_Borough")
+    .agg(
+        pl.mean("trip_duration_minutes").alias("avg_duration_minutes"),
+        pl.mean("revenue_per_minute").alias("avg_revenue_per_minute"),
+        pl.mean("speed_mph").alias("avg_speed_mph"),
+        pl.len().alias("trip_count"),
+    )
+    .sort("avg_revenue_per_minute", descending=True)
+    .sink_csv("data/nyc-taxi/out/efficiency_by_borough_duration.csv", mkdir=True, lazy=True)
+)
+
+pl.collect_all(sinks, engine=engine)
