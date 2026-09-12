@@ -1,4 +1,4 @@
-polars
+polars>=1.42
 maturin[patchelf]
 ruff
 pytest
