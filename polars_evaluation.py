@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 from datetime import datetime
 from typing import Literal
 
@@ -24,13 +25,14 @@ def ecommerce_execution(file_type: str, file_path: str, mode: Literal["eager", "
         .filter((pl.col("sum_price") > 500))
     )
     if mode == "eager":
-        df.write_parquet("data/out/polars.parquet", compression="snappy")  # Just overwrite the file to save space
+        engine = "in-memory"  # Eager read + write: no lazy engine is involved at all.
+        df.write_parquet("data/out/polars.parquet", compression="snappy", mkdir=True)
     else:
-        df.sink_parquet(
-            "data/out/polars.parquet", engine="streaming", compression="snappy"
-        )  # Just overwrite the file to save space. Snappy compression to match spark default
+        engine = "streaming"
+        df.sink_parquet("data/out/polars.parquet", engine=engine, compression="snappy", mkdir=True)
+    # Snappy compression matches the Spark default. The output is overwritten each run to save space.
     duration = (datetime.now() - start_time).total_seconds()
-    save_execution_time(f"Polars {mode}", duration, "CPU", "streaming", file_path, "Simple")
+    save_execution_time(f"Polars {mode}", duration, "CPU", engine, file_path, "Simple")
 
 
 def nyc_taxi_execution(
@@ -39,6 +41,7 @@ def nyc_taxi_execution(
     execution_query: Literal["simple", "complex"] = "simple",
     gpu_engine: bool = False,
 ) -> None:
+    cpu_gpu = "GPU" if gpu_engine else "CPU"  # Needed in the error path too, so resolve it before the try.
     try:
         start_time = datetime.now()
         if engine == "in-memory" and gpu_engine:
@@ -48,7 +51,8 @@ def nyc_taxi_execution(
 
         polars_engine = pl.GPUEngine(executor=engine, raise_on_fail=True) if gpu_engine else engine
         dataset = "yellow" if dataset_type == "nyc-yellow" else "green"
-        cpu_gpu = "GPU" if gpu_engine else "CPU"
+        # cudf-polars >= 26.06 always writes a directory from a streaming GPU sink, never a single file.
+        out_path = "data/out/polars_gpu_stream" if gpu_engine and engine == "streaming" else "data/out/polars.parquet"
         df_zones = pl.scan_csv("data/nyc-taxi/taxi_zone_lookup.csv", schema=zone_schema)
         df = (
             pl.scan_parquet(f"data/nyc-taxi/{dataset}.parquet")
@@ -65,9 +69,7 @@ def nyc_taxi_execution(
                 pl.mean("fare_amount").alias("avg_fare"),
                 pl.mean("trip_distance").alias("avg_distance"),
                 pl.mean("tip_amount").alias("avg_tip"),
-            ).sort("trip_distance").sink_parquet(
-                "data/out/polars.parquet", engine=polars_engine
-            )  # Snappy compression to match spark default
+            ).sort("trip_distance").sink_parquet(out_path, engine=polars_engine, mkdir=True)
         else:
             df.group_by(["trip_distance", "DO_Zone", "DO_Borough", "PU_Borough"]).agg(
                 pl.len().alias("trip_count"),
@@ -76,14 +78,14 @@ def nyc_taxi_execution(
                 pl.mean("trip_distance").alias("avg_distance"),
                 pl.mean("tip_amount").alias("avg_tip"),
             ).sort(["trip_distance", "DO_Zone", "DO_Borough", "PU_Borough"]).sink_parquet(
-                "data/out/polars.parquet", engine=polars_engine
-            )  # Snappy compression to match spark default
-        end_time = datetime.now()
+                out_path, engine=polars_engine, mkdir=True
+            )
         duration = (datetime.now() - start_time).total_seconds()
     except Exception as e:
-        duration = "Error (memory)"
+        # Every failure used to be recorded as "Error (memory)", which hid typos and unsupported-GPU-op errors.
+        print(f"Polars {cpu_gpu} {engine} {dataset_type} {execution_query} failed: {e!r}", file=sys.stderr)
+        duration = f"Error ({type(e).__name__})"
     save_execution_time("Polars", duration, cpu_gpu, engine, dataset_type, execution_query)
-    # update_benchmark_section_in_file("Polars", cpu_gpus, engine, dataset_type, start_time, end_time)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,9 @@
 import polars as pl
-import polars.selectors as cs
 from schemas import pl_schema, generate_polars_cast
 import glob
 
-pl.Config.set_engine_affinity("streaming")
+# polars >= 1.41: engine="auto" (the default for every sink/collect) already resolves to the streaming
+# engine when no affinity is set, so the previous pl.Config.set_engine_affinity("streaming") was redundant.
 # PREPROCESS FOR TALK
 
 
