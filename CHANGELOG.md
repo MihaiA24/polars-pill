@@ -6,7 +6,104 @@ All notable changes to this project are documented here. Format follows
 Every entry names the upstream release or PR that forced it, so the next upgrade does not have to
 re-derive the reason.
 
-## [Unreleased] - 2026-09-12
+## [Unreleased] - 2026-10-07
+
+Upgrade of the CPU stack from polars 1.42.1 to **2.0.0**
+([release](https://github.com/pola-rs/polars/releases/tag/py-2.0.0),
+[upgrade guide](https://docs.pola.rs/releases/upgrade/2/)); the GPU stack stays on 1.42.1. This
+builds on the 1.42.1 step below, and both ship together from `chore/polars-v2-upgrade` (formerly
+`chore/polars-1.42.1-upgrade`). Benchmarks were **not** re-run: the table in `README.md` still
+reports polars 1.32.3.
+
+### Changed
+
+- **`cpu_polars` pinned to `polars==2.0.0`; `gpu_polars` stays at `polars[gpu]==1.42.1`**
+  (`pyproject.toml`, `pyproject_with_sha_example.toml`). This replaces the single version of ADR 0002
+  with [ADR 0003](docs/adr/0003-polars-2-on-cpu-gpu-held-at-1.42.1.md). No cudf-polars release
+  supports polars 2: `cudf-polars-cu12` 26.8.1 requires `polars>=1.35,<1.43` and the 26.10/26.12
+  nightlies `<1.45`. Forced onto polars 2.0.0, cudf-polars 26.8.1 fails at import
+  (`AttributeError: module '_ir_nodes' has no attribute 'ExtContext'`) on every `GPUEngine` collect,
+  with or without `raise_on_fail`.
+- **CPU and GPU benchmark rows now come from different polars versions.** `run_benchmark.sh` swaps
+  groups mid-run, so the swap moves polars from 2.0.0 to 1.42.1 as well as changing the engine. Noted
+  above the table in `README.md`, in RUNBOOK §3/§5 and in ADR 0001.
+- **`uv.lock` re-resolved**: polars and `polars-runtime-32` 2.0.0 added for `cpu_polars`, 1.42.1 kept
+  for `gpu_polars`, nothing else moved. The `polars-sha` entry was re-recorded from a fresh build: the
+  committed one carried another build's wheel hash and stale `polars>=1.20` metadata, so `uv sync`
+  without `-U` failed with `Hash mismatch for polars-sha` after any rebuild. RUNBOOK §1 now says to
+  run `uv lock --upgrade-package polars-sha` after building.
+- **Plugin CI: Python 3.9 → 3.10** in the `linux-just-test` matrix
+  (`polars_sha/.github/workflows/publish_to_pypi.yml`). `requires-python` was already `>=3.10` and
+  polars has shipped no 3.9 wheels since 1.37, so that job could not install `polars>=1.42`. It now
+  resolves polars 2.0.0; `linux-min-versions-just-test` keeps 1.42.1, the GPU pin.
+
+### Fixed — required by polars 2.0
+
+- **`LazyFrame.profile()` was removed.** The GPU notebook comments called it deprecated; they now say
+  it only runs because the GPU stack is on 1.42.1 and that the cells go when it moves
+  (`Polars_GPU_01_Memory.ipynb`, `Polars_GPU_Colab.ipynb`). CONTEXT.md and RUNBOOK §5 likewise.
+- **Colab install line** states why it stays on `polars[gpu]==1.42.1`.
+
+### Fixed — wrong claims from the 1.42.1 step
+
+- **`engine="auto"` did not mean streaming for `collect()` on 1.x.** The 1.42.1 step said it did
+  from 1.41 on (`00_preprocess.py`, CONTEXT.md, RUNBOOK §5, `Polars_GPU_02_Streaming.ipynb`,
+  `Polars_GPU_Colab.ipynb`). Measured with `POLARS_VERBOSE=1`: a bare `collect()` runs the in-memory
+  engine on 1.42.1 and the streaming engine on 2.0.0 — the 2.0 change "The Lazy API defaults to the
+  streaming engine". On 1.x only `sink_*` streamed by default, and sinks are all `00_preprocess.py`
+  uses, so removing `set_engine_affinity("streaming")` there was still right. All five now date the
+  switch to 2.0.
+- **Eager runs do use an engine.** `polars_evaluation.py` said eager mode involves "no lazy engine at
+  all"; in 2.0 `pl.read_csv`/`pl.read_parquet` are `scan_*()` collected through `_collect_eager()`,
+  which always selects the in-memory engine — what the eager rows' `in-memory` label records. Comment
+  and CONTEXT.md "Mode" corrected.
+
+### Verified — no code change needed
+
+Each 2.0 breaking change was checked against the code:
+
+- **CSV `schema` is matched by header name, not position** (`read_csv`/`scan_csv`). The e-commerce
+  CSV and zone lookup headers carry the same names, in the same order, as `pl_schema`/`zone_schema`.
+- **Streaming does not preserve row order for `group_by`/joins.** Every NYC query sorts before it
+  sinks; the e-commerce output and the notebooks' `head()` previews do not depend on order.
+- **String → temporal casts removed.** `generate_polars_cast` emits none (see the 1.42.1 step).
+- **`show_graph()` defaults to `plan_stage="physical"`.** `Polars_API.ipynb` already passes
+  `plan_stage="ir"`.
+- **Removed APIs** (individual optimization flags, `streaming=`, `with_row_count`,
+  `join(how="outer")`, …): none used.
+- **Plugin.** No Rust crates for polars 2 are published (crates.io's newest `polars` is 0.55.2), so
+  `polars_sha/Cargo.toml` is unchanged. The 0.55.2 / pyo3-polars 0.28 build loads on py-polars 2.0.0
+  and 1.42.1 and matches `hashlib` for `sha2_256`/`sha2_512`, including nulls and a 300k-row streaming
+  collect; `polars_sha/tests` passes on 2.0.0.
+
+Evidence, on subsets of the real data (300k e-commerce rows; green 2014/2019/2023-01, yellow
+2021/2023-01), polars 2.0.0 against 1.42.1:
+
+- `00_preprocess.py`: all 11 outputs identical.
+- `polars_evaluation.py`: all 13 CPU polars configurations from `run_benchmark.sh` succeed with the
+  same results and sorted NYC output. `Float32` sums differ in the last bits (max 0.016 on values
+  around 1.3e5), as they also do between two runs of 1.42.1.
+- `nyc/polars_evaluation.py`: all six outputs equal within that tolerance.
+- `Polars_API.ipynb`, `Polars_Plugins.ipynb`: execute with no errors or warnings, except the two
+  `show_graph` cells, which need the graphviz `dot` binary (absent on the test machine); their DOT
+  output was checked with `raw_output=True`. The `explain()` cell still shows both joins, with only
+  `LocationID` read from the zone lookup.
+- GPU stack (`gpu_polars` synced from the new lock with `--frozen`; polars 1.42.1, cudf-polars
+  26.8.1, RTX 5090 Laptop): the plugin loads, and the simple NYC query succeeds on both executors.
+  The complex query could not be judged — another process held 23 of the GPU's 24 GB.
+
+### Added
+
+- `docs/adr/0003-polars-2-on-cpu-gpu-held-at-1.42.1.md` — why the groups run different polars
+  versions, and what to change when cudf-polars supports polars 2. ADR 0002 is marked superseded.
+
+### Deliberately not changed
+
+- **Benchmark table and stored notebook outputs**: not re-measured or re-executed.
+- **No polars 2 feature demos** (`Map` dtype, SQL, out-of-core spill): this is an upgrade only.
+- **GPU code**: still on 1.42.1; only comments changed.
+
+## polars 1.42.1 step - 2026-09-12
 
 Upgrade from polars 1.32.3 (2025-08-14) to 1.42.1, across scripts, notebooks and the Rust plugin.
 Benchmarks were **not** re-run: the table in `README.md` is unchanged and still reports the numbers
@@ -20,7 +117,7 @@ measured on polars 1.32.3.
   [`cudf-polars-cu12` 26.8.1](https://pypi.org/project/cudf-polars-cu12/26.8.1/), requires
   `polars>=1.35,<1.43`, so **1.42.1 is the ceiling while the GPU engine has to work**. A single
   version is used for both groups because `run_benchmark.sh` swaps groups mid-run and writes CPU and
-  GPU rows into one table.
+  GPU rows into one table. *Superseded for `cpu_polars` by the polars 2.0 entry above.*
 - **`cudf-polars-cu12>=26.8.1` is now declared explicitly** in the `gpu_polars` group. polars' own
   `gpu` extra is unversioned (`cudf-polars-cu12; extra == "gpu"`), so with polars pinned the resolver
   walked backwards to the `24.8.0a281` placeholder package and `uv sync` failed trying to build
@@ -61,7 +158,8 @@ measured on polars 1.32.3.
 - **`pl.Config.set_engine_affinity("streaming")` removed** (`00_preprocess.py`). polars 1.41
   stabilised the streaming engine ([#27497](https://github.com/pola-rs/polars/pull/27497)) and
   `engine="auto"` — the default for every `collect`/`sink_*` — already falls back to `"streaming"`
-  when no affinity is set. The call was a no-op restating the default.
+  when no affinity is set. The call was a no-op restating the default. *Corrected in the polars 2.0
+  entry: on 1.x this held for `sink_*` only; `collect` defaulted to in-memory until 2.0.*
 - **Multi-GPU cells ported to `DaskEngine`** (`Polars_GPU_02_Streaming.ipynb`,
   `Polars_GPU_Colab.ipynb`). `GPUEngine(executor="streaming", executor_options={"scheduler":
   "distributed"})` plus a hand-built `dask_cuda.LocalCUDACluster` is superseded: since cudf-polars
@@ -153,4 +251,5 @@ measured on polars 1.32.3.
   `polars_evaluation.py` when forcing the in-memory executor; if it is gone, those lines are dead
   code rather than wrong code.
 - **No GPU code path was executed.** The `gpu_polars` group conflicts with `cpu_polars`, so verifying
-  it requires a full environment swap; `DaskEngine` needs more than one GPU in any case.
+  it requires a full environment swap; `DaskEngine` needs more than one GPU in any case. *Single-GPU
+  paths were run during the polars 2.0 step; see that entry.*

@@ -52,6 +52,8 @@ These benchmarks are results from running them on a 12-core AMD Ryzen 9900X, 32G
 
 If you have less than 32GB RAM, yellow trip data may not work due to RAM requirements or take a long amount of time.
 
+`run_benchmark.sh` measures CPU rows on polars 2.0.0 and GPU rows on polars 1.42.1, the newest version cudf-polars supports ([ADR 0003](docs/adr/0003-polars-2-on-cpu-gpu-held-at-1.42.1.md)).
+
 
 | Library          |           Duration (s) | CPU/GPU  | Engine       | Dataset                   | Query        |
 |------------------|------------------------|----------|--------------|---------------------------|--------------| 

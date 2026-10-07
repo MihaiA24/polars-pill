@@ -10,22 +10,29 @@ was recorded under the `Engine` column, which is why eager runs appeared as "str
 *How the query is expressed*, chosen by the demo code, not by polars.
 
 - **Eager** — operations execute as each call is made (`pl.read_parquet`, `DataFrame.write_parquet`).
-  There is no query plan and therefore no engine choice.
+  There is no user-visible query plan and no engine choice: polars runs each call on the
+  **in-memory** engine.
 - **Lazy** — operations build a plan (`pl.scan_parquet`, `LazyFrame.sink_parquet`) that is optimized
   and then executed by an **Engine**.
 
-Mode is meaningful for the e-commerce comparison. It is *not* an engine: an eager run has no engine.
+Mode is meaningful for the e-commerce comparison. It is *not* an engine: an eager run has no engine
+choice, which is why its benchmark rows always read in-memory.
 
 ## Engine
 
 *What executes a lazy plan*, selected per call via `engine=` on `collect`/`sink_*`, or globally via
 engine affinity.
 
-- **auto** — the default. Resolves to the configured affinity, falling back to **streaming**.
-- **in-memory** — materializes intermediates in RAM; the historical polars default.
-- **streaming** — processes the plan in batches; stable since polars 1.41 and the default target of
-  the project going forward.
-- **gpu** — hands the plan to cudf-polars, falling back to the CPU unless `raise_on_fail=True`.
+- **auto** — the default. Resolves to the configured affinity; with none set, **streaming** for lazy
+  queries since polars 2.0. Before 2.0 it meant **in-memory** for `collect`, while `sink_*` always
+  streamed.
+- **in-memory** — materializes intermediates in RAM; the `collect` default before polars 2.0, and
+  what eager calls always run on.
+- **streaming** — processes the plan in batches; stable since polars 1.41 and the lazy default since
+  2.0. Operations without a defined output order (`group_by`, joins) may return rows in a different
+  order than in-memory.
+- **gpu** — hands the plan to cudf-polars, falling back to the CPU unless `raise_on_fail=True`. Only
+  available in the `gpu_polars` group, which is held at polars 1.42.1.
 
 ## Executor
 
@@ -35,7 +42,8 @@ A **cudf-polars** concept, not a polars one: *which GPU execution model runs the
 - **streaming executor** — partitions inputs and streams them; the default behind `engine="gpu"`, and
   the only model that scales past device memory.
 - **in-memory executor** — `GPUEngine(executor="in-memory")`; single GPU, whole query materialized in
-  device memory. The only GPU path that supports `LazyFrame.profile`.
+  device memory. The only GPU path that supports `LazyFrame.profile`, which polars 2.0 removed — it
+  exists only on the 1.42.1 GPU stack.
 
 "GPU streaming" therefore means engine = gpu **and** executor = streaming. Saying "engine" for this
 axis is what makes GPU rows ambiguous.

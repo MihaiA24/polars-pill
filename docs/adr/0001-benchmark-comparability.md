@@ -14,5 +14,6 @@ polars.
 - Any optimization applied to one library must be applied to the others, or the table has to be
   re-measured end to end.
 - Published numbers stay tied to the version that produced them. The current table was measured on
-  polars 1.32.3 and was not re-measured during the 1.42.1 upgrade, so it is a historical record, not
-  a description of the current code.
+  polars 1.32.3 and was not re-measured during the 1.42.1 or 2.0 upgrades, so it is a historical
+  record, not a description of the current code. Since [0003](0003-polars-2-on-cpu-gpu-held-at-1.42.1.md),
+  CPU and GPU rows come from different polars versions.
