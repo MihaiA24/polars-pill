@@ -21,11 +21,11 @@ dev = [
     "ruff>=0.11.11",
 ]
 cpu_polars = [
-    "polars==1.42.1"
+    "polars==2.0.0"
 ]
 
 gpu_polars = [
-    # 1.42.1 is the newest polars any cudf-polars release supports (26.8.1 requires polars>=1.35,<1.43).
+    # Held at 1.42.1 while cpu_polars is on 2.x (docs/adr/0003): no cudf-polars release supports polars 2.
     "polars[gpu]==1.42.1",
     "cudf-polars-cu12>=26.8.1"
 ]

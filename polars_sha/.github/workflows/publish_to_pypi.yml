@@ -35,7 +35,7 @@ jobs:
     strategy:
       matrix:
         target: [x86_64]
-        python-version: ["3.9", "3.11", "3.13"]
+        python-version: ["3.10", "3.11", "3.13"]  # polars >= 1.37 (and 2.x) needs Python >= 3.10; installs the newest polars
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -66,7 +66,7 @@ jobs:
         run: rustup show
       - uses: mozilla-actions/sccache-action@v0.0.6
       - run: make venv
-      - run: .venv/bin/python -m pip install polars==1.42.1  # min version: matches the pyo3-polars 0.28 / Rust polars 0.55 ABI
+      - run: .venv/bin/python -m pip install polars==1.42.1  # min version: the gpu_polars pin, built against the pyo3-polars 0.28 / Rust polars 0.55 ABI
       - run: make install
       - run: make test
 
