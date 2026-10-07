@@ -2,8 +2,8 @@ import polars as pl
 from schemas import pl_schema, generate_polars_cast
 import glob
 
-# polars >= 1.41: engine="auto" (the default for every sink/collect) already resolves to the streaming
-# engine when no affinity is set, so the previous pl.Config.set_engine_affinity("streaming") was redundant.
+# No engine affinity is set: sink_* always runs on the streaming engine, and since polars 2.0 engine="auto" also
+# resolves to streaming for collect(). The eager read_parquet/write_parquet calls below run on the in-memory engine.
 # PREPROCESS FOR TALK
 
 

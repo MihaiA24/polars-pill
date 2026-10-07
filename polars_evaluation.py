@@ -25,7 +25,9 @@ def ecommerce_execution(file_type: str, file_path: str, mode: Literal["eager", "
         .filter((pl.col("sum_price") > 500))
     )
     if mode == "eager":
-        engine = "in-memory"  # Eager read + write: no lazy engine is involved at all.
+        # Eager calls run on the in-memory engine: polars 2.0 executes read_csv/read_parquet as scan_*() collected
+        # in-memory, regardless of the streaming default for lazy queries.
+        engine = "in-memory"
         df.write_parquet("data/out/polars.parquet", compression="snappy", mkdir=True)
     else:
         engine = "streaming"
