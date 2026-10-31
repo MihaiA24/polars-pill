@@ -60,8 +60,10 @@ To regenerate the report, include the development group in your selected environ
 ```
 
 Open the HTML locally; it needs no network or Python packages to view. Each workload has a table
-and a Matplotlib bar chart with a library/device legend. Row numbers link bars to attempts;
-charts use separate zero-based scales, omit failures and do not average repeated runs.
+and a grouped Matplotlib bar chart labelled by library and device/execution configuration.
+Versions appear side by side and in the legend; run numbers are not used. Charts use separate
+zero-based scales, mark failed attempts without zero-time bars, and keep repeated measurements
+separate rather than averaging them.
 
 The first 28 records preserve the confirmed pins and original labels from
 [`00aa8e9`](https://github.com/MihaiA24/polars-pill/commit/00aa8e90e4324f9f8469dcd0e4061617bfdc0b0f).

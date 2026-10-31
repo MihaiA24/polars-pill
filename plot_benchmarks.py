@@ -67,25 +67,40 @@ def load_records(path):
 
 
 def _plot_runs(runs, colors):
-    """Plot successful query durations; row numbers link bars to the results table."""
-    successes = [(number, record) for number, record in runs if record["error"] is None]
-    figure = Figure(figsize=(10, 1.8 + 0.4 * len(successes)), layout="constrained")
+    """Compare versions side by side within each library/device/execution group."""
+    groups = defaultdict(list)
+    for record in runs:
+        groups[(record["library"], record["device"], record["engine"])].append(record)
+    width = 0.8 / max(map(len, groups.values()))
+    figure = Figure(figsize=(max(10, 1.6 * len(groups)), 5), layout="constrained")
     axes = figure.subplots()
-    series = [(record["library"], record["device"]) for _, record in successes]
-    bars = axes.barh(
-        range(len(successes)),
-        [record["duration_seconds"] for _, record in successes],
-        color=[colors[key] for key in series],
-    )
-    axes.set_yticks(range(len(successes)), [f"#{number} · {record['engine']}" for number, record in successes])
-    axes.invert_yaxis()
-    axes.set_xlabel("Query time (seconds) — lower is better")
-    axes.set_xlim(left=0)
-    axes.margins(x=0.15)
+    for position, group in enumerate(groups.values()):
+        for offset, record in enumerate(group):
+            x = position + (offset - (len(group) - 1) / 2) * width
+            if record["error"] is not None:
+                axes.text(x, 0, f"{record['version'] or 'not recorded'}\nfailed", ha="center", va="bottom", fontsize=8)
+                continue
+            bars = axes.bar(
+                x, record["duration_seconds"], width=width, color=colors[(record["version"], record["backend_version"])]
+            )
+            axes.bar_label(bars, fmt="%.4g", padding=4)
+    axes.set_xticks(range(len(groups)), [f"{library}\n{device} · {engine}" for library, device, engine in groups])
+    axes.set_xlim(-0.5, len(groups) - 0.5)
+    axes.set_ylabel("Query time (seconds) — lower is better")
+    axes.margins(y=0.15)
+    axes.set_ylim(bottom=0)
     axes.spines[["top", "right"]].set_visible(False)
-    axes.bar_label(bars, fmt="%.6g", padding=4)
+    versions = {(record["version"], record["backend_version"]) for record in runs}
     axes.legend(
-        handles=[Patch(color=colors[key], label=" / ".join(key)) for key in dict.fromkeys(series)],
+        handles=[
+            Patch(
+                color=color,
+                label=(version or "not recorded") + (f" / cudf-polars {backend}" if backend is not None else ""),
+            )
+            for (version, backend), color in colors.items()
+            if (version, backend) in versions
+        ],
+        title="Version",
         loc="lower left",
         bbox_to_anchor=(0, 1.02),
         ncols=3,
@@ -97,10 +112,10 @@ def _plot_runs(runs, colors):
 def render_report(records):
     """Show every attempt in a workload table, followed by its comparison chart."""
     workloads = defaultdict(list)
-    for number, record in enumerate(records, 1):
-        workloads[(record["dataset"], record["query"])].append((number, record))
-    series = sorted({(record["library"], record["device"]) for record in records})
-    colors = {key: f"C{index % 10}" for index, key in enumerate(series)}
+    for record in records:
+        workloads[(record["dataset"], record["query"])].append(record)
+    versions = dict.fromkeys((record["version"], record["backend_version"]) for record in records)
+    colors = {key: f"C{index % 10}" for index, key in enumerate(versions)}
     parts = [
         """<!doctype html>
 <html lang="en">
@@ -118,6 +133,7 @@ section { margin-block: 2.5rem; }
 table { border-collapse: collapse; width: 100%; font-size: .9rem; }
 th, td { padding: .6rem .65rem; text-align: left; border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent); vertical-align: top; }
 th { white-space: nowrap; background: color-mix(in srgb, currentColor 7%, transparent); }
+td:nth-child(-n+3) { white-space: nowrap; }
 .number { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 small { display: block; }
 details { margin-top: .25rem; font-size: .8rem; }
@@ -133,25 +149,25 @@ svg [style*="stroke: #000000"] { stroke: currentColor !important; }
 <h1>Benchmark results</h1>
 <p>One table per dataset/query; every attempt is retained without averaging.
 Query times exclude startup; totals include it when recorded. Lower is better.
-Charts compare successful query times on a separate linear scale per workload.
-Bar colours identify library/device pairs consistently; row numbers link back to the table.
+Charts group bars by library and device/execution configuration, with versions side by side.
+The legend identifies library/backend versions consistently; repeated measurements stay separate.
 Historical execution labels are retained, including old eager/streaming and duplicate query labels.</p>
 """
     ]
     if not workloads:
         parts.append("<p>No benchmark runs recorded.</p>\n")
     for section_number, ((dataset, query), runs) in enumerate(workloads.items(), 1):
+        runs = sorted(runs, key=lambda record: (record["library"], record["device"], record["engine"]))
         parts.append(
             f'<section aria-labelledby="workload-{section_number}">\n'
             f'<h2 id="workload-{section_number}">{escape(f"{dataset} — {query}")}</h2>\n'
             '<div class="table-scroll" role="region" aria-label="Benchmark results" tabindex="0">\n'
             f'<table aria-labelledby="workload-{section_number}"><thead><tr>'
-            '<th scope="col">Run</th><th scope="col">Library</th><th scope="col">Version</th>'
-            '<th scope="col">Device</th><th scope="col">Execution</th>'
+            '<th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th>'
             '<th scope="col" class="number">Query (s)</th><th scope="col" class="number">Total (s)</th>'
             '<th scope="col">Result / details</th></tr></thead><tbody>\n'
         )
-        for number, record in runs:
+        for record in runs:
             version = escape(record["version"] or "not recorded")
             if record["backend_version"] is not None:
                 version += f"<small> cudf-polars {escape(record['backend_version'])}</small>"
@@ -165,14 +181,14 @@ Historical execution labels are retained, including old eager/streaming and dupl
                 if key not in REQUIRED_FIELDS and isinstance(value, str)
             )
             parts.append(
-                f"<tr><td>{number}</td><td>{escape(record['library'])}</td><td>{version}</td>"
-                f"<td>{escape(record['device'])}</td><td>{escape(record['engine'])}</td>"
+                f"<tr><td>{escape(record['library'])}</td>"
+                f"<td>{escape(record['device'])} · {escape(record['engine'])}</td><td>{version}</td>"
                 f'<td class="number">{duration}</td><td class="number">{total}</td>'
                 f"<td>{escape(result)}<details><summary>Run details</summary>"
                 f"<p>{escape(' · '.join(details))}</p></details></td></tr>\n"
             )
         parts.append("</tbody></table></div>\n")
-        if any(record["error"] is None for _, record in runs):
+        if any(record["error"] is None for record in runs):
             with rc_context(
                 {
                     "svg.fonttype": "none",
@@ -186,7 +202,7 @@ Historical execution labels are retained, including old eager/streaming and dupl
                 figure.savefig(output, format="svg", transparent=True, metadata={"Date": None})
             svg = output.getvalue()
             parts.append(
-                '<figure tabindex="0" aria-label="Scrollable query-time chart"><figcaption>Successful query times — legend: library / device.</figcaption>\n'
+                '<figure tabindex="0" aria-label="Scrollable query-time chart"><figcaption>Query times by library/configuration; adjacent bars compare versions. Failed attempts have no bar.</figcaption>\n'
                 + svg[svg.index("<svg") :]
                 + "</figure>\n"
             )
