@@ -6,7 +6,76 @@ All notable changes to this project are documented here. Format follows
 Every entry names the upstream release or PR that forced it, so the next upgrade does not have to
 re-derive the reason.
 
-## [Unreleased] - 2026-10-07
+## [Unreleased] - 2026-10-31
+
+CPU [polars 2.1.0](https://github.com/pola-rs/polars/releases/tag/py-2.1.0), GPU polars 1.44.2 /
+[RAPIDS 26.10.2](https://pypi.org/pypi/cudf-polars-cu12/26.10.2/json). RAPIDS now accepts
+`polars>=1.35,<1.45`, so the GPU ceiling moves without removing the split-version decision.
+Historical benchmark numbers and stored notebook outputs are unchanged.
+
+### Changed
+
+- Both root manifests and the lock use `polars[iceberg]==2.1.0` for CPU and
+  `polars[gpu]==1.44.2` / `cudf-polars-cu12>=26.10.2` for GPU. The CPU extra enables the native
+  Iceberg planner instead of the slower PyIceberg-planning fallback.
+- The Iceberg notebook uses `sink_iceberg` create-if-absent options with overwrite semantics;
+  repeated execution no longer fails at namespace/table creation or duplicates appended data.
+- The benchmark runner uses `uv sync --locked`, stops on environment setup failure, and does not
+  remove prior benchmark output until its initial sync succeeds. Setup docs build the required
+  plugin wheel first and refresh its hash with `uv lock --upgrade-package polars-sha`.
+- Single-GPU streaming sinks on RAPIDS 26.10.2 support a file; the old directory-only workaround
+  is removed and all benchmark paths reuse `data/out/polars.parquet`. Explicit distributed
+  engines still require directory sinks
+  ([source](https://github.com/NVIDIA/cudf/blob/v26.10.02/python/cudf_polars/cudf_polars/utils/config.py#L1364-L1371)).
+- Plugin runtime dependencies contain only Polars; build/test/type/lint tools remain development
+  requirements. The lock no longer brings them into `--no-dev` root installations.
+- Plugin CI lives in repository-root `.github/workflows`, uses correct working directories,
+  tests exact CPU/GPU/minimum Polars versions, and gates publication on those tests. The 2.1
+  matrix uses Python ≥3.11; retired macOS images are replaced with supported runner labels.
+- `polars_cloud.py` is renamed `cloud_monitoring_demo.py` so it cannot shadow the SDK. Monitoring
+  uses the account's default workspace. RUNBOOK documents its separate 2.0 / SDK 0.12 environment:
+  the SDK required by 2.1 has not been published, and `polars-nanook` is only a placeholder
+  ([upstream rename preparation](https://github.com/pola-rs/polars/pull/30099)).
+
+### Fixed
+
+- Preprocessing normalizes names, drops obsolete columns, and adds filename-derived dates even
+  when no dtype cast is needed. Canonical monthly files are skipped; rewrites use a same-directory
+  temporary file and atomic replacement rather than truncating the original on write failure.
+- E-commerce prices use Float64, matching pandas and Spark. Existing Float32 Parquet must be
+  regenerated from CSV to recover source precision; it is not silently rewritten by the upgrade.
+- NYC Polars analysis preserves fractional minutes; both Polars and Spark borough percentages
+  divide by total trips rather than a hard-coded `8`.
+- GPU timing/profiling/streaming comparisons use the same four grouping keys. Notebook transitions
+  shut down the singleton before entering a context-managed Dask engine with strict GPU failure
+  handling. Dead executable UVM setup is removed; host spilling and UVM are described separately.
+- Colab installs into its kernel with pinned `%pip` commands, keeps installer errors visible, and
+  replaces automatic kernel shutdowns with explicit restart/setup instructions.
+- Pig Latin slices at the first character's UTF-8 boundary, not byte `1`; Unicode no longer causes
+  a plugin panic. Obsolete Python <3.10 typing compatibility code and an unused alias are removed.
+- The API notebook's lazy output no longer overwrites its eager output file.
+
+### Verified
+
+- Four root regressions pass, including actual Spark execution on Java 21, rename-only/mixed
+  preprocessing and reruns, fractional durations, normalized shares, price-threshold precision,
+  and preservation of results after failed benchmark setup.
+- Two plugin tests pass against the rebuilt wheel on Polars 2.1.0, 1.44.2 and the declared 1.42.0
+  minimum, including SHA-256/512 versus `hashlib` and Unicode Pig Latin.
+- Bounded real data: 12 CPU benchmark configurations on 2.1.0; eight GPU configurations on
+  1.44.2 / RAPIDS 26.10.2, with CPU/GPU output equivalence within floating-point tolerance.
+- CPU API/plugin notebooks: 45 non-empty code cells execute on small real-data inputs; graph
+  generation is checked as raw DOT, not a rendered notebook frontend.
+- Both local GPU notebooks execute 20 code cells on small inputs. Singleton → Dask → singleton
+  transitions and cleanup on success/error work with one GPU; this is not multi-GPU scaling proof.
+- Colab's 18 computational cells execute locally on the GPU; all 21 code cells compile through
+  IPython's transformer. Hosted package installation/download cells were not executed.
+- The root environment remains on CPU 2.1.0; GPU verification uses a separate materialized
+  environment. Full-size timings, hosted Colab installation, and authenticated cloud monitoring
+  were not run. Existing wall-clock/broad-exception Ruff diagnostics in the benchmark module
+  remain unchanged; pipeline/plugin/new-test Ruff checks pass.
+
+## polars 2.0 step - 2026-10-07
 
 Upgrade of the CPU stack from polars 1.42.1 to **2.0.0**
 ([release](https://github.com/pola-rs/polars/releases/tag/py-2.0.0),

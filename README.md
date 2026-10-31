@@ -15,32 +15,33 @@ Install uv running:
   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-Sync all packages by running: 
-```shell
-  uv sync --group cpu_polars -U # Install common, dev and cpu_polars packages
-  # If you want to install the gpu_polars packages run:
-  uv sync --group gpu_polars -U # Install common, dev and gpu_polars packages 
-  # For benchmark running use:
-  uv sync --group cpu_polars --no-dev -U # Avoid installing dev packages
-  # Or for GPU:
-  uv sync --group gpu_polars --no-dev -U # Avoid installing dev packages
-```
-## Polars plugin installation
+Build the plugin **before** syncing: the root project depends on its local wheel.
 
-To install the polars plugins:
-    1. In the folder polars_sha (plugin folder) run: 
 ```shell
-    make venv # First create the venv or make venv-uv
-    make build-wheel # Make the package as wheel
-```
-. That will build the python wheel in path target/wheels
-    2. Add the dependency in the root folder with uv as: 
-```shell
-    uv add polars_sha/target/wheels/name_of_wheel.whl # Change name_of_wheel.whl with the name of the wheel you just built
+make -C polars_sha venv
+make -C polars_sha build-wheel
+uv lock --upgrade-package polars-sha
+uv sync --locked --group cpu_polars
 ```
 
-## Spark setutp
-For Spark 4.0 Java 17 or 21 need to be installed:
+The configured wheel path targets Linux x86_64. If your build emits a different filename, update
+`[tool.uv.sources]` in `pyproject.toml` and `pyproject_with_sha_example.toml` before locking.
+Re-record the wheel hash with `uv lock --upgrade-package polars-sha` after every rebuild.
+
+Choose one environment; syncing a group replaces the other:
+
+```shell
+uv sync --locked --group cpu_polars             # Polars 2.1.0, native Iceberg planner, dev tools
+uv sync --locked --group gpu_polars             # Polars 1.44.2, RAPIDS 26.10.2, dev tools
+uv sync --locked --group cpu_polars --no-dev    # CPU benchmark dependencies only
+uv sync --locked --group gpu_polars --no-dev    # GPU benchmark dependencies only
+```
+
+Full procedures, regression checks, and the separate cloud-monitoring environment are in
+[RUNBOOK.md](RUNBOOK.md).
+
+## Spark setup
+For Spark 4.2, Java 17 or 21 needs to be installed:
 ```shell
     brew install temurin@17 # Open JDK 17 Temurin for MacOs via Homebrew
     sudo apt install openjdk-17-jdk # Open JDK 17 for Debian-based Linux
@@ -52,7 +53,12 @@ These benchmarks are results from running them on a 12-core AMD Ryzen 9900X, 32G
 
 If you have less than 32GB RAM, yellow trip data may not work due to RAM requirements or take a long amount of time.
 
-`run_benchmark.sh` measures CPU rows on polars 2.0.0 and GPU rows on polars 1.42.1, the newest version cudf-polars supports ([ADR 0003](docs/adr/0003-polars-2-on-cpu-gpu-held-at-1.42.1.md)).
+The table below is **historical**, measured on polars 1.32.3; its timings and old engine labels
+have not been regenerated. The current runner uses CPU polars 2.1.0 and GPU polars 1.44.2 /
+RAPIDS 26.10.2, which still does not support polars 2.x
+([ADR 0003](docs/adr/0003-polars-2-on-cpu-gpu-held-at-1.42.1.md)).
+Regenerate e-commerce Parquet from CSV before new comparisons: the schema now preserves Float64
+prices, and old Float32 files cannot recover the lost precision.
 
 
 | Library          |           Duration (s) | CPU/GPU  | Engine       | Dataset                   | Query        |

@@ -32,7 +32,7 @@ engine affinity.
   2.0. Operations without a defined output order (`group_by`, joins) may return rows in a different
   order than in-memory.
 - **gpu** — hands the plan to cudf-polars, falling back to the CPU unless `raise_on_fail=True`. Only
-  available in the `gpu_polars` group, which is held at polars 1.42.1.
+  available in the `gpu_polars` group, which runs polars 1.44.2.
 
 ## Executor
 
@@ -43,7 +43,7 @@ A **cudf-polars** concept, not a polars one: *which GPU execution model runs the
   the only model that scales past device memory.
 - **in-memory executor** — `GPUEngine(executor="in-memory")`; single GPU, whole query materialized in
   device memory. The only GPU path that supports `LazyFrame.profile`, which polars 2.0 removed — it
-  exists only on the 1.42.1 GPU stack.
+  exists only on the 1.x GPU stack, where it is deprecated.
 
 "GPU streaming" therefore means engine = gpu **and** executor = streaming. Saying "engine" for this
 axis is what makes GPU rows ambiguous.

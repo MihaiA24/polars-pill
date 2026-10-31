@@ -17,7 +17,7 @@ df_zones = pl.scan_csv("data/nyc-taxi/taxi_zone_lookup.csv", schema=zone_schema)
 df = (
     pl.scan_parquet(args.file_path)
     .with_columns(
-        ((pl.col("tpep_dropoff_datetime") - pl.col("tpep_pickup_datetime")).dt.total_minutes()).alias(
+        ((pl.col("tpep_dropoff_datetime") - pl.col("tpep_pickup_datetime")).dt.total_minutes(fractional=True)).alias(
             "trip_duration_minutes"
         )
     )
@@ -87,7 +87,7 @@ sinks.append(
         pl.mean("trip_distance").alias("avg_distance"),
         pl.mean("tip_amount").alias("avg_tip"),
     )
-    .with_columns((pl.col("trip_count") / 8 * 100).alias("percentage_of_trips"))
+    .with_columns((pl.col("trip_count") / pl.col("trip_count").sum() * 100).alias("percentage_of_trips"))
     .sort("trip_count", descending=True)
     .sink_csv("data/nyc-taxi/out/efficiency_by_borough.csv", mkdir=True, lazy=True)
 )

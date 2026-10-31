@@ -1,7 +1,7 @@
 # polars is pinned to the newest version the GPU engine supports, not the newest release
 
 **Superseded by [0003](0003-polars-2-on-cpu-gpu-held-at-1.42.1.md)** when polars 2.0 shipped without
-GPU support: the CPU group moved to 2.0.0 and only the GPU group stays on 1.42.1.
+GPU support. The constraints below describe that historical decision; see 0003 for current pins.
 
 polars 1.44.2 is current, but no cudf-polars build supports polars ≥ 1.43 — `cudf-polars-cu12`
 26.8.1 requires `polars>=1.35,<1.43`. Since three of the five notebooks and half of the benchmark

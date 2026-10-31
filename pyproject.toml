@@ -21,16 +21,13 @@ dev = [
     "ruff>=0.11.11",
 ]
 cpu_polars = [
-    "polars==2.0.0"
+    "polars[iceberg]==2.1.0"
 ]
 
 gpu_polars = [
-    # Held at 1.42.1 while cpu_polars is on 2.x (docs/adr/0003): no cudf-polars release supports polars 2.
-    # cudf-polars 26.8.1 requires polars>=1.35,<1.43; forced onto polars 2.0.0 it fails at import (no `ExtContext`).
-    # cudf-polars is pinned explicitly because polars' own `gpu` extra is unversioned: left to itself the
-    # resolver walks back to the cudf-polars 24.8 placeholder package and the sync fails.
-    "polars[gpu]==1.42.1",
-    "cudf-polars-cu12>=26.8.1"
+    # RAPIDS 26.10 supports polars>=1.35,<1.45, not polars 2.x (docs/adr/0003).
+    "polars[gpu]==1.44.2",
+    "cudf-polars-cu12>=26.10.2"
 ]
 
 [tool.uv]

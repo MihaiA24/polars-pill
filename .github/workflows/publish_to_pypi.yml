@@ -6,7 +6,7 @@
 # - removed x86, armv7, s390x, ppc64le targets from Linux
 # - removed free-threaded wheels
 # - removed musllinux
-# - have separate linux-just-test and linux-min-versions-just-test jobs
+# - test exact CPU and legacy GPU Polars versions, plus the plugin's minimum version
 # - add the `RUSTFLAGS: "-Dwarnings"` env variable
 
 
@@ -29,13 +29,17 @@ permissions:
 env:
   RUSTFLAGS: "-Dwarnings"
 
+defaults:
+  run:
+    working-directory: polars_sha
+
 jobs:
   linux-just-test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64]
-        python-version: ["3.10", "3.11", "3.13"]  # polars >= 1.37 (and 2.x) needs Python >= 3.10; installs the newest polars
+        # Polars 2.1 requires Python >=3.11; Python 3.10 is covered by the legacy job.
+        python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,19 +47,25 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Set up Rust
-        run: rustup show
+        run: |
+          rustup show
+          rustup toolchain install nightly --profile minimal --component rustfmt
       - uses: mozilla-actions/sccache-action@v0.0.6
       - run: make venv
+      - run: .venv/bin/python -m pip install polars==2.1.0
       - run: make pre-commit
       - run: make install
       - run: make test
 
-  linux-min-versions-just-test:
+  linux-legacy-versions-just-test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64]
-        python-version: ["3.10"]
+        include:
+          - python-version: "3.10"
+            polars-version: "1.42.0"  # plugin minimum; Python 3.10 cannot install Polars 2.1
+          - python-version: "3.12"
+            polars-version: "1.44.2"  # same Polars version as the GPU environment; tests run on CPU
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -66,7 +76,7 @@ jobs:
         run: rustup show
       - uses: mozilla-actions/sccache-action@v0.0.6
       - run: make venv
-      - run: .venv/bin/python -m pip install polars==1.42.1  # min version: the gpu_polars pin, built against the pyo3-polars 0.28 / Rust polars 0.55 ABI
+      - run: .venv/bin/python -m pip install polars==${{ matrix.polars-version }}
       - run: make install
       - run: make test
 
@@ -87,6 +97,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
+          working-directory: polars_sha
           target: ${{ matrix.platform.target }}
           args: --release --out dist
           sccache: 'true'
@@ -95,7 +106,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-${{ matrix.platform.target }}
-          path: dist
+          path: polars_sha/dist
 
   windows:
     runs-on: ${{ matrix.platform.runner }}
@@ -113,6 +124,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
+          working-directory: polars_sha
           target: ${{ matrix.platform.target }}
           args: --release --out dist
           sccache: 'true'
@@ -120,16 +132,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-windows-${{ matrix.platform.target }}
-          path: dist
+          path: polars_sha/dist
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       matrix:
         platform:
-          - runner: macos-13
+          - runner: macos-15-intel
             target: x86_64
-          - runner: macos-14
+          - runner: macos-15
             target: aarch64
     steps:
       - uses: actions/checkout@v4
@@ -139,6 +151,7 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
+          working-directory: polars_sha
           target: ${{ matrix.platform.target }}
           args: --release --out dist
           sccache: 'true'
@@ -146,7 +159,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-${{ matrix.platform.target }}
-          path: dist
+          path: polars_sha/dist
 
   sdist:
     runs-on: ubuntu-latest
@@ -155,19 +168,20 @@ jobs:
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
+          working-directory: polars_sha
           command: sdist
           args: --out dist
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
           name: wheels-sdist
-          path: dist
+          path: polars_sha/dist
 
   release:
     name: Release
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
-    needs: [linux, windows, macos, sdist]
+    needs: [linux-just-test, linux-legacy-versions-just-test, linux, windows, macos, sdist]
     environment: pypi
     permissions:
       # Use to sign the release artifacts

@@ -1,7 +1,6 @@
-from typing import Literal
 
 import polars as pl
-from pyspark.sql.types import StructType, StringType, StructField, IntegerType, LongType, DoubleType
+from pyspark.sql.types import DoubleType, IntegerType, LongType, StringType, StructField, StructType
 
 # NOTE: Intentionally read event_time as String to convert to Timestamp
 pd_schema = {
@@ -23,7 +22,7 @@ pl_schema = {
     "category_id": pl.Int64(),
     "category_code": pl.String(),
     "brand": pl.String(),
-    "price": pl.Float32(),
+    "price": pl.Float64(),
     "user_id": pl.Int32(),
     "user_session": pl.String(),
 }

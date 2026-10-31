@@ -1,6 +1,24 @@
-# polars 2 on the CPU group; the GPU group stays on 1.42.1
+# polars 2 on CPU; the GPU group follows RAPIDS' supported 1.x range
 
 Supersedes [0002](0002-polars-pinned-to-the-gpu-engine-ceiling.md).
+
+## Update — 2026-10-31
+
+`cpu_polars` now uses `polars[iceberg]==2.1.0`; `gpu_polars` uses `polars[gpu]==1.44.2` and
+`cudf-polars-cu12>=26.10.2`. The [published RAPIDS 26.10.2 metadata](https://pypi.org/pypi/cudf-polars-cu12/26.10.2/json)
+requires `polars>=1.35,<1.45`: the old 1.42.1 ceiling has moved, but the split-version decision
+still holds. The [Polars 2.1 release](https://github.com/pola-rs/polars/releases/tag/py-2.1.0)
+does not require a Rust crate upgrade; the shared plugin keeps polars 0.55.2 / pyo3-polars 0.28.
+
+Fresh measurements therefore compare CPU 2.1.0 with GPU 1.44.2. Existing published numbers remain
+the historical 1.32.3 measurements. Single-GPU streaming sinks on RAPIDS 26.10.2 can write a file;
+the old directory-only benchmark workaround is removed. Explicit distributed engines still
+require directory sinks.
+
+The original decision and its 2026-10-06 constraints follow for historical context.
+
+## Original decision — 2026-10-06
+
 
 polars 2.0.0 (2026-10-06) is a major release: lazy queries default to the streaming engine,
 `LazyFrame.profile` is gone and the 1.x deprecations are removed. No GPU engine can run it.

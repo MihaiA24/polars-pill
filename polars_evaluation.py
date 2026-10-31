@@ -53,8 +53,7 @@ def nyc_taxi_execution(
 
         polars_engine = pl.GPUEngine(executor=engine, raise_on_fail=True) if gpu_engine else engine
         dataset = "yellow" if dataset_type == "nyc-yellow" else "green"
-        # cudf-polars >= 26.06 always writes a directory from a streaming GPU sink, never a single file.
-        out_path = "data/out/polars_gpu_stream" if gpu_engine and engine == "streaming" else "data/out/polars.parquet"
+        out_path = "data/out/polars.parquet"
         df_zones = pl.scan_csv("data/nyc-taxi/taxi_zone_lookup.csv", schema=zone_schema)
         df = (
             pl.scan_parquet(f"data/nyc-taxi/{dataset}.parquet")

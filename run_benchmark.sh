@@ -4,7 +4,6 @@ ecom_path="data/2019-Oct.csv"
 ecom_path_parquet="data/2019-Oct.parquet"
 
 commands=(
-   "uv sync --group cpu_polars --no-dev -U"
    "source .venv/bin/activate"
    "python pandas_evaluation.py --file_path $ecom_path_20M"
    "python polars_evaluation.py --file_path $ecom_path_20M --mode eager"
@@ -37,7 +36,7 @@ commands=(
 
   # Change to GPU env
   "deactivate"
-  "uv sync --group gpu_polars --no-dev -U"
+  "uv sync --locked --group gpu_polars --no-dev"
   "source .venv/bin/activate"
   # nyc green dataset
   "python polars_evaluation.py --dataset_type nyc-green --engine in-memory --gpu_engine True --execution_query simple"
@@ -54,19 +53,29 @@ commands=(
   "python polars_evaluation.py --dataset_type nyc-yellow --engine streaming --gpu_engine True --execution_query complex"
 )
 
+uv sync --locked --group cpu_polars --no-dev || exit "$?"
+
 [ -f "benchmark.txt" ] && rm "benchmark.txt" # Safe remove previous broken file if exists
 
 for command in "${commands[@]}"; do
 	echo "Running $command"
   SECONDS=0
-  eval "$command"
-#	echo "$script"
-	exit_code=$?
+  if eval "$command"; then
+    exit_code=0
+  else
+    exit_code=$?
+  fi
   duration=$SECONDS
   if [[ $exit_code -eq 0 ]]; then
       echo "✓ Completed in ${duration}s"
   else
       echo "✗ Script failed with exit code: $exit_code"
+      case "$command" in
+        "uv sync "*|"source "*|"deactivate")
+          echo "Environment setup failed; preserving benchmark.txt and leaving README.md untouched." >&2
+          exit "$exit_code"
+          ;;
+      esac
   fi
 done
 
