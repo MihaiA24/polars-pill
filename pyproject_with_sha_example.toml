@@ -8,8 +8,8 @@ dependencies = [
     "deltalake>=1.6.3",
     "duckdb>=1.5.5",
     "pyarrow>=25.0.1",
-    "pyspark>=4.2.0",
-    "pandas>=3.0.5",
+    "pyspark>=4.3.0",
+    "pandas>=3.1.0",
     "polars-sha",
     "pyiceberg[sql-sqlite]>=0.12.0", # >=0.12 rejects the broken pydantic 2.12.0/2.12.1 itself
 ]
@@ -17,6 +17,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "cookiecutter>=2.6.0",
+    "matplotlib>=3.11.2",
     "notebook>=7.4.3",
     "ruff>=0.11.11",
 ]

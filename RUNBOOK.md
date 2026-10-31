@@ -1,19 +1,21 @@
 # Runbook — running the benchmarks
 
-Procedure for producing a fresh benchmark table. Vocabulary (mode / engine / executor / query /
-dataset) is defined in [CONTEXT.md](CONTEXT.md); what changed in the upgrade and why is in
-[CHANGELOG.md](CHANGELOG.md).
+Procedure for recording versioned benchmark history and generating performance diagrams. Vocabulary
+(mode / engine / executor / query / dataset / runtime version) is defined in [CONTEXT.md](CONTEXT.md);
+upgrade details are in [CHANGELOG.md](CHANGELOG.md).
 
 Current pins: **polars 2.1.0** with native Iceberg planning in `cpu_polars`, **polars 1.44.2** /
 **cudf-polars-cu12 26.10.2** in `gpu_polars`, Python 3.12.9. RAPIDS requires `polars<1.45`, so the
 groups remain separate ([ADR 0003](docs/adr/0003-polars-2-on-cpu-gpu-held-at-1.42.1.md)).
+Both groups use **pandas 3.1.0** and **PySpark 4.3.0**. The project's Python 3.12 and PyArrow 25
+already satisfy their requirements; pandas 3.1 requires NumPy ≥2.0.2, which the lock also satisfies.
 
 ## 0. Prerequisites
 
 | Requirement | Checked with | Notes |
 |---|---|---|
 | Python 3.12 | `uv python list` | `.python-version` selects 3.12.9 |
-| Java 17 or 21 | `java -version` | PySpark 4.2; verified on OpenJDK 21 |
+| Java 17 or 21 | `java -version` | PySpark 4.3; verified on OpenJDK 21 |
 | Rust toolchain | `cargo --version` | only to rebuild the plugin; needs ≥ 1.83 for pyo3 0.29 |
 | Datasets | `ls data/nyc-taxi` | `download_datasets.sh`, then `00_preprocess.py` |
 | ~40 GB free disk | `df -h .` | outputs are overwritten each run, but `efficiency.parquet` alone is 2.4 GB on green |
@@ -60,8 +62,8 @@ uv sync --locked --group cpu_polars            # include notebook/ruff/cookiecut
 also what `run_benchmark.sh` does halfway through its command list.
 
 The runner uses `--locked`, not `-U`: dependencies cannot drift between measurements. A failed
-environment setup aborts before running queries under the wrong stack or replacing the README table.
-The initial CPU sync also succeeds before an existing `benchmark.txt` is removed.
+environment setup aborts before querying under the wrong stack. Existing JSON records and the
+README are never deleted or rewritten by benchmark execution.
 
 ## 3. Run the full matrix
 
@@ -69,18 +71,21 @@ The initial CPU sync also succeeds before an existing `benchmark.txt` is removed
 ./run_benchmark.sh
 ```
 
-The script runs CPU sync (polars 2.1.0) → e-commerce comparisons (pandas,
-polars eager and lazy, PySpark, CSV and Parquet) → NYC green → NYC yellow → GPU sync (polars 1.44.2)
-→ the same NYC runs on GPU. Each run appends one row to `benchmark.txt`; at the end
-`utils.append_benchmark_to_readme()` truncates `README.md` at the benchmark header and appends the new
-table, then `benchmark.txt` is deleted.
+The script runs CPU sync (polars 2.1.0) → e-commerce comparisons (pandas 3.1.0,
+polars eager and lazy, PySpark 4.3.0, CSV and Parquet) → NYC green → NYC yellow → GPU sync
+(polars 1.44.2) → the same NYC runs on GPU.
+
+Each measured run appends one JSON object to `benchmarks.jsonl`. At the end, the runner loads the
+development dependencies with `uv run --locked --group gpu_polars` and generates `BENCHMARKS.html`.
+Repeated invocations append new runs rather than replacing historical results. There is no
+intermediate Markdown table or README publication step.
 
 Consequences worth knowing before you start it:
 
-- **`README.md` is rewritten.** Everything after the benchmark header line is replaced. Commit or
-  stash anything you care about below that point.
-- **Caught NYC failures produce an error row**, carrying the exception type rather than a duration.
-  Check stderr too: an uncaught error or killed process can exit before recording its row.
+- **History is append-only.** Single commands also append records. If a matrix stops halfway
+  through, completed records remain available; regenerate the report manually using §9.
+- **Failures are not zero-duration successes.** Caught errors have `duration_seconds: null` and
+  an error message. An uncaught exception or killed process can still exit before recording a row.
 - **Yellow in-memory is expected to fail or thrash** on a 32 GB machine. That is the point of the
   row.
 - **Rebuild e-commerce Parquet before new comparisons.** `pl_schema["price"]` is now Float64,
@@ -133,6 +138,12 @@ pulling that CUDA 12 extra. Use a materialized environment via `uv sync` for nat
 - **One plugin wheel serves both groups.** It is compiled against the polars Rust crates 0.55.2
   (pyo3-polars 0.28); no Rust crates for polars 2 are published yet. After any rebuild, run the smoke
   check above in both groups.
+- **Spark 4.3 still warns about pandas ≥3 for Spark↔pandas conversion.** The benchmark uses Spark
+  DataFrames directly, not those conversion APIs; pandas is measured separately. The warning is
+  not suppressed. See the [Spark source](https://github.com/apache/spark/blob/v4.3.0/python/pyspark/sql/pandas/utils.py).
+- **Spark NYC joins use named pickup/drop-off keys.** Reusing the lookup's `LocationID` expression
+  with ambiguity checks disabled dropped cross-zone trips and duplicated same-zone trips. Both
+  query variants now match the Polars workload; old timings were not re-measured.
 
 ## 6. Notebooks
 
@@ -178,3 +189,49 @@ uv pip install --python /tmp/polars-cloud-demo/bin/python "polars-cloud==0.12.0"
 This requires a cloud account and authentication; `enable_monitoring()` uses its default workspace.
 See the [SDK metadata](https://pypi.org/pypi/polars-cloud/json) and
 [Polars 2.1 package-rename preparation](https://github.com/pola-rs/polars/pull/30099).
+
+## 9. Results, charts, and historical provenance
+
+`benchmarks.jsonl` is the source of truth. Every new record stores the library's actual running
+`version`, a UTC recording timestamp, the original library/device/execution/dataset/query labels,
+and numeric `duration_seconds`. GPU records also include the installed cudf-polars `backend_version`.
+Spark's `total_seconds` includes session initialization plus the query; it is not initialization
+time alone. Successful records have `error: null`; caught failures have an error string and no
+numeric duration. Timing uses `perf_counter`; JSON serialization happens after measurement.
+
+Generate the report without rerunning queries. Matplotlib is a development dependency; a minimal
+`--no-dev` environment must include that group first:
+
+```shell
+uv sync --locked --group cpu_polars # Or --group gpu_polars for the GPU environment.
+.venv/bin/python plot_benchmarks.py
+.venv/bin/python plot_benchmarks.py --input benchmarks.jsonl --output BENCHMARKS.html
+```
+
+Open `BENCHMARKS.html` locally in a browser; viewing it needs no network or Python packages.
+Each dataset/query starts with a compact table of every attempt, version, device, execution label,
+query/total seconds and outcome. GPU versions include the cudf-polars version. Expand run details
+for timestamps and provenance. A Matplotlib horizontal bar chart follows each table, with consistent
+library/device colours, a legend and row numbers linking bars to the table. Workloads have separate
+zero-based linear scales and are not averaged. Failed runs stay in the table without a fabricated
+zero-time bar. Tables and charts scroll locally on narrow screens, keeping chart labels readable.
+
+Malformed JSON and invalid durations are rejected with a source line number. Verification fixtures
+write only to temporary directories, never to the published history.
+
+The 28 historical rows were published together in
+[`00aa8e9`](https://github.com/MihaiA24/polars-pill/commit/00aa8e90e4324f9f8469dcd0e4061617bfdc0b0f).
+The maintainer confirmed that these runs used the versions pinned in that revision. Those versions
+are stored directly in `version` and `backend_version`, without unverified/snapshot labels:
+
+- pandas 2.3.2; PySpark 4.0.1.
+- CPU Polars 1.33.1; GPU Polars 1.31.0 and cudf-polars 25.8.0.
+
+Measurement timestamps were not saved, so historical `recorded_at` remains null. The publication
+revision and maintainer confirmation are retained in `provenance`. Original timings, failures,
+and even the old eager/streaming and duplicate query-label mistakes are preserved. Historical
+Spark `Init` strings were split into query and total seconds.
+
+The original README described a 12-core Ryzen 9900X, 32 GB RAM plus 32 GB swap, and a 16 GB NVIDIA
+5070 Ti. That is documented historical hardware, not per-record runtime telemetry. Full-size
+measurements must be rerun before claiming a speedup from the new dependency versions or fixes.

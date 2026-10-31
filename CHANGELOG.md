@@ -11,18 +11,37 @@ re-derive the reason.
 CPU [polars 2.1.0](https://github.com/pola-rs/polars/releases/tag/py-2.1.0), GPU polars 1.44.2 /
 [RAPIDS 26.10.2](https://pypi.org/pypi/cudf-polars-cu12/26.10.2/json). RAPIDS now accepts
 `polars>=1.35,<1.45`, so the GPU ceiling moves without removing the split-version decision.
-Historical benchmark numbers and stored notebook outputs are unchanged.
+Also upgrades [Spark to 4.3.0](https://spark.apache.org/releases/spark-release-4-3-0.html) and
+[pandas to 3.1.0](https://pandas.pydata.org/docs/whatsnew/v3.1.0.html). Historical benchmark numbers
+and stored notebook outputs are unchanged; historical versions use the confirmed publication pins.
 
 ### Changed
 
 - Both root manifests and the lock use `polars[iceberg]==2.1.0` for CPU and
   `polars[gpu]==1.44.2` / `cudf-polars-cu12>=26.10.2` for GPU. The CPU extra enables the native
   Iceberg planner instead of the slower PyIceberg-planning fallback.
+- Both root manifests require `pyspark>=4.3.0` and `pandas>=3.1.0`; the lock resolves those versions
+  in both CPU and GPU environments. Existing Python 3.12, Java 21, NumPy 2.5.3 and Arrow 25 satisfy
+  their requirements. Spark's pandas 3.x conversion warning remains upstream; these benchmarks
+  use native Spark DataFrames rather than that conversion path.
 - The Iceberg notebook uses `sink_iceberg` create-if-absent options with overwrite semantics;
   repeated execution no longer fails at namespace/table creation or duplicates appended data.
-- The benchmark runner uses `uv sync --locked`, stops on environment setup failure, and does not
-  remove prior benchmark output until its initial sync succeeds. Setup docs build the required
-  plugin wheel first and refresh its hash with `uv lock --upgrade-package polars-sha`.
+- The benchmark runner uses `uv sync --locked` and stops on environment setup failure without
+  deleting earlier results. Setup docs build the required plugin wheel first and refresh its
+  hash with `uv lock --upgrade-package polars-sha`.
+- Benchmark results append directly to `benchmarks.jsonl`, replacing intermediate text, Markdown
+  formatting helpers and README rewriting. Each new record captures UTC time, the actual runtime
+  version, GPU backend version when applicable, numeric query/total durations, and explicit errors.
+  Measurements use `perf_counter`; failed attempts have null durations, not zero-time results.
+- All 28 old rows move out of README into JSONL. The maintainer confirmed the pins at publication
+  commit `00aa8e9`: pandas 2.3.2, Spark 4.0.1, CPU Polars 1.33.1 and GPU Polars 1.31.0 /
+  cudf-polars 25.8.0. These are stored as the benchmark versions without unverified labels or
+  separate lock-candidate fields. Historical timestamps remain null; timings and errors are unchanged.
+- `plot_benchmarks.py` generates offline `BENCHMARKS.html` with compact workload tables followed
+  by Matplotlib bar charts. Legends identify library/device pairs with consistent colours and row
+  numbers link bars to table entries. Failures have no bar; totals do not determine bar lengths.
+  Matplotlib 3.11.2 is a development dependency in both root manifests. The runner loads development
+  dependencies for report generation after timing finishes; README links replace duplicate results.
 - Single-GPU streaming sinks on RAPIDS 26.10.2 support a file; the old directory-only workaround
   is removed and all benchmark paths reuse `data/out/polars.parquet`. Explicit distributed
   engines still require directory sinks
@@ -54,12 +73,21 @@ Historical benchmark numbers and stored notebook outputs are unchanged.
 - Pig Latin slices at the first character's UTF-8 boundary, not byte `1`; Unicode no longer causes
   a plugin panic. Obsolete Python <3.10 typing compatibility code and an unused alias are removed.
 - The API notebook's lazy output no longer overwrites its eager output file.
+- Root Spark NYC joins use distinct pickup/drop-off keys and no longer disable ambiguous-self-join
+  detection. Reusing `LocationID` expressions dropped cross-zone trips and duplicated same-zone
+  trips. Both simple and complex queries now agree with the Polars outputs.
 
 ### Verified
 
-- Four root regressions pass, including actual Spark execution on Java 21, rename-only/mixed
-  preprocessing and reruns, fractional durations, normalized shares, price-threshold precision,
-  and preservation of results after failed benchmark setup.
+- All 14 root regressions pass, including actual Spark 4.3 execution on Java 21, cross-zone joins,
+  preprocessing/idempotence/precision, versioned append-only logging, preservation after failed
+  setup, table associations, query-time charts and legends, failure states and untrusted HTML escaping.
+- pandas 3.1 CSV-to-Parquet parsing/aggregation and Spark 4.3 CSV/Parquet medians, nulls and threshold
+  boundaries pass on bounded inputs. All four NYC Spark query outputs match CPU Polars 2.1 on
+  bounded real green/yellow data. Both GPU executors capture Polars 1.44.2 / backend 26.10.2 in JSON.
+- The report renders in a real browser in light and dark themes: seven tables, 28 rows, seven charts
+  with legends, and three visible failures. Desktop and 390-pixel mobile layouts have no page-level
+  horizontal overflow; narrow tables scroll locally and run details expand. Smoke timings stay isolated.
 - Two plugin tests pass against the rebuilt wheel on Polars 2.1.0, 1.44.2 and the declared 1.42.0
   minimum, including SHA-256/512 versus `hashlib` and Unicode Pig Latin.
 - Bounded real data: 12 CPU benchmark configurations on 2.1.0; eight GPU configurations on
@@ -72,8 +100,8 @@ Historical benchmark numbers and stored notebook outputs are unchanged.
   IPython's transformer. Hosted package installation/download cells were not executed.
 - The root environment remains on CPU 2.1.0; GPU verification uses a separate materialized
   environment. Full-size timings, hosted Colab installation, and authenticated cloud monitoring
-  were not run. Existing wall-clock/broad-exception Ruff diagnostics in the benchmark module
-  remain unchanged; pipeline/plugin/new-test Ruff checks pass.
+  were not run. Legacy broad-exception handling remains in benchmark entrypoints so failures can
+  be recorded; pipeline/plugin/report/logging/new-test Ruff checks pass.
 
 ## polars 2.0 step - 2026-10-07
 

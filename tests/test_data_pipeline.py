@@ -165,6 +165,23 @@ class DataPipelineTests(unittest.TestCase):
     def test_nyc_spark_fractional_durations_and_shares(self):
         self.check_nyc("nyc/pypsark_evaluation.py")
 
+    @unittest.skipUnless(shutil.which("java"), "Spark requires Java")
+    def test_spark_benchmark_zone_joins_keep_cross_zone_trips(self):
+        trips = self.trips().head(2).with_columns(pl.Series("DOLocationID", [2, 1], dtype=pl.UInt16))
+        trips.write_parquet(self.taxi / "green.parquet")
+        (self.taxi / "taxi_zone_lookup.csv").write_text(
+            "LocationID,Borough,Zone,service_zone\n1,A,Zone A,Boro\n2,B,Zone B,Boro\n", encoding="utf-8"
+        )
+        for query in ("simple", "complex"):
+            with self.subTest(query=query):
+                self.run_script("pyspark_evaluation.py", "--dataset_type", "nyc-green", "--execution_query", query)
+                result = pl.read_parquet(str(self.root / "data/out/pyspark.parquet/*.parquet")).sort("trip_distance")
+                self.assertEqual(result["trip_distance"].to_list(), [1.0, 2.0])
+                self.assertEqual(result["trip_count"].to_list(), [1, 1])
+                self.assertEqual(result["total_revenue"].to_list(), [2.0, 6.0])
+                if query == "complex":
+                    self.assertEqual(result["DO_Zone"].to_list(), ["Zone B", "Zone A"])
+
 
 if __name__ == "__main__":
     unittest.main()

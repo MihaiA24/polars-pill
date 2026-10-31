@@ -10,10 +10,11 @@ requires `polars>=1.35,<1.45`: the old 1.42.1 ceiling has moved, but the split-v
 still holds. The [Polars 2.1 release](https://github.com/pola-rs/polars/releases/tag/py-2.1.0)
 does not require a Rust crate upgrade; the shared plugin keeps polars 0.55.2 / pyo3-polars 0.28.
 
-Fresh measurements therefore compare CPU 2.1.0 with GPU 1.44.2. Existing published numbers remain
-the historical 1.32.3 measurements. Single-GPU streaming sinks on RAPIDS 26.10.2 can write a file;
-the old directory-only benchmark workaround is removed. Explicit distributed engines still
-require directory sinks.
+Fresh measurements therefore compare CPU 2.1.0 with GPU 1.44.2. Historical numbers in
+`benchmarks.jsonl` keep CPU 1.33.1 / GPU 1.31.0: the publication-lock pins confirmed by the
+maintainer, rather than the current upgrade versions. Single-GPU streaming sinks on RAPIDS
+26.10.2 can write a file; the old directory-only benchmark workaround is removed. Explicit
+distributed engines still require directory sinks.
 
 The original decision and its 2026-10-06 constraints follow for historical context.
 

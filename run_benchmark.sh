@@ -55,8 +55,6 @@ commands=(
 
 uv sync --locked --group cpu_polars --no-dev || exit "$?"
 
-[ -f "benchmark.txt" ] && rm "benchmark.txt" # Safe remove previous broken file if exists
-
 for command in "${commands[@]}"; do
 	echo "Running $command"
   SECONDS=0
@@ -72,13 +70,12 @@ for command in "${commands[@]}"; do
       echo "✗ Script failed with exit code: $exit_code"
       case "$command" in
         "uv sync "*|"source "*|"deactivate")
-          echo "Environment setup failed; preserving benchmark.txt and leaving README.md untouched." >&2
+          echo "Environment setup failed; recorded JSON results are preserved." >&2
           exit "$exit_code"
           ;;
       esac
   fi
 done
 
-# Append benchmark to README.md
-python -c "from utils import append_benchmark_to_readme; append_benchmark_to_readme()"
-rm -f benchmark.txt
+# Load development dependencies only for report generation, after timing the GPU runs.
+uv run --locked --group gpu_polars python plot_benchmarks.py

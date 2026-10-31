@@ -1,7 +1,8 @@
 import argparse
 import os
 import sys
-from datetime import datetime
+from importlib.metadata import version as package_version
+from time import perf_counter
 from typing import Literal
 
 import polars as pl
@@ -11,7 +12,7 @@ from utils import save_execution_time
 
 
 def ecommerce_execution(file_type: str, file_path: str, mode: Literal["eager", "lazy"]) -> None:
-    start_time = datetime.now()
+    start_time = perf_counter()
 
     if file_type == "parquet":
         df = pl.read_parquet(file_path) if mode == "eager" else pl.scan_parquet(file_path)
@@ -33,8 +34,8 @@ def ecommerce_execution(file_type: str, file_path: str, mode: Literal["eager", "
         engine = "streaming"
         df.sink_parquet("data/out/polars.parquet", engine=engine, compression="snappy", mkdir=True)
     # Snappy compression matches the Spark default. The output is overwritten each run to save space.
-    duration = (datetime.now() - start_time).total_seconds()
-    save_execution_time(f"Polars {mode}", duration, "CPU", engine, file_path, "Simple")
+    duration = perf_counter() - start_time
+    save_execution_time(f"Polars {mode}", duration, "CPU", engine, file_path, "simple", version=pl.__version__)
 
 
 def nyc_taxi_execution(
@@ -44,8 +45,10 @@ def nyc_taxi_execution(
     gpu_engine: bool = False,
 ) -> None:
     cpu_gpu = "GPU" if gpu_engine else "CPU"  # Needed in the error path too, so resolve it before the try.
+    duration = error = backend_version = None
     try:
-        start_time = datetime.now()
+        backend_version = package_version("cudf-polars-cu12") if gpu_engine else None
+        start_time = perf_counter()
         if engine == "in-memory" and gpu_engine:
             os.environ["POLARS_GPU_ENABLE_CUDA_MANAGED_MEMORY"] = (
                 "0"  # Forcing in-memory engine to not use UVM for the benchmark
@@ -81,12 +84,22 @@ def nyc_taxi_execution(
             ).sort(["trip_distance", "DO_Zone", "DO_Borough", "PU_Borough"]).sink_parquet(
                 out_path, engine=polars_engine, mkdir=True
             )
-        duration = (datetime.now() - start_time).total_seconds()
+        duration = perf_counter() - start_time
     except Exception as e:
         # Every failure used to be recorded as "Error (memory)", which hid typos and unsupported-GPU-op errors.
         print(f"Polars {cpu_gpu} {engine} {dataset_type} {execution_query} failed: {e!r}", file=sys.stderr)
-        duration = f"Error ({type(e).__name__})"
-    save_execution_time("Polars", duration, cpu_gpu, engine, dataset_type, execution_query)
+        error = f"{type(e).__name__}: {e}"
+    save_execution_time(
+        "Polars",
+        duration,
+        cpu_gpu,
+        engine,
+        dataset_type,
+        execution_query,
+        version=pl.__version__,
+        backend_version=backend_version,
+        error=error,
+    )
 
 
 if __name__ == "__main__":

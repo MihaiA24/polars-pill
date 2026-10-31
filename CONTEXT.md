@@ -2,8 +2,8 @@
 
 Glossary for this repository. Terms only — no implementation detail, no procedures.
 
-The benchmark table has one column per axis below. They were conflated once already: a run's `mode`
-was recorded under the `Engine` column, which is why eager runs appeared as "streaming".
+These are separate benchmark concepts even when historical labels conflate them. The old results
+mixed mode and engine labels, which is why eager runs appeared as "streaming".
 
 ## Mode
 
@@ -15,8 +15,8 @@ was recorded under the `Engine` column, which is why eager runs appeared as "str
 - **Lazy** — operations build a plan (`pl.scan_parquet`, `LazyFrame.sink_parquet`) that is optimized
   and then executed by an **Engine**.
 
-Mode is meaningful for the e-commerce comparison. It is *not* an engine: an eager run has no engine
-choice, which is why its benchmark rows always read in-memory.
+Mode is meaningful for the e-commerce comparison. It is *not* an engine: current Polars eager
+runs use in-memory, while historical execution labels may be wrong.
 
 ## Engine
 
@@ -57,7 +57,8 @@ same streaming executor.
 
 ## Dataset
 
-A named input to a benchmark run, not a file path.
+The input to a benchmark run. E-commerce comparisons identify the particular CSV/Parquet input
+and subset; NYC comparisons identify a named taxi dataset.
 
 - **ecommerce** — the multi-category store behaviour log; the CSV-versus-Parquet and
   eager-versus-lazy comparisons use it.
@@ -77,9 +78,14 @@ every library being compared performs them.
 
 ## Run
 
-A single measured execution, identified by the tuple (library, dataset, query, mode-or-engine,
-CPU/GPU). One run produces one row in the benchmark table; a failed run records the failure in place
-of a duration rather than disappearing.
+A single measured execution, identified by library and runtime version, input, query, execution
+label, and CPU/GPU. It produces a query duration or a failure; Spark can additionally record a
+total that includes session initialization.
+
+## Runtime version
+
+The library or engine version that produced a benchmark result. New runs capture it automatically;
+historical runs use the pinned versions confirmed by the maintainer.
 
 ## Plugin
 
