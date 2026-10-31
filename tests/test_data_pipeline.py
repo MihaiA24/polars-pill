@@ -7,9 +7,12 @@ import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pandas as pd
 import polars as pl
+from pyspark.sql import SparkSession
+from pyspark.sql.types import FloatType
 
-from schemas import default_schema
+from schemas import default_schema, pd_schema, pl_schema, spark_schema
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -74,7 +77,8 @@ class DataPipelineTests(unittest.TestCase):
                 "event_time,event_type,product_id,category_id,category_code,brand,price,user_id,user_session\n"
                 "2019-10-01 00:00:00 UTC,view,1,1,phones,brand,500.000001,1,session\n"
                 "2019-10-01 00:00:00 UTC,view,2,1,phones,brand,500,1,session\n"
-                "2019-10-01 00:00:00 UTC,view,3,1,phones,brand,499.999999,1,session\n",
+                "2019-10-01 00:00:00 UTC,view,3,1,phones,brand,499.999999,1,session\n"
+                "2019-10-01 00:00:00 UTC,view,4,1,phones,brand,500.01,1,session\n",
                 encoding="utf-8",
             )
 
@@ -120,22 +124,37 @@ class DataPipelineTests(unittest.TestCase):
         self.assertEqual(snapshots(files), before)
 
         parquet = self.root / "data/2019-Oct.parquet"
-        self.assertEqual(pl.read_parquet_schema(parquet)["price"], pl.Float64)
-        for file_type in ("csv", "parquet"):
-            for mode in ("eager", "lazy"):
-                with self.subTest(file_type=file_type, mode=mode):
-                    self.run_script(
-                        "polars_evaluation.py",
-                        "--file_path",
-                        f"data/2019-Oct.{file_type}",
-                        "--file_type",
-                        file_type,
-                        "--mode",
-                        mode,
-                    )
-                    result = pl.read_parquet(self.root / "data/out/polars.parquet")
-                    self.assertEqual(result["product_id"].to_list(), [1])
-                    self.assertAlmostEqual(result["sum_price"].item(), 500.000001, places=9)
+        self.assertEqual(pl.read_parquet_schema(parquet)["price"], pl.Float32)
+        csv = self.root / "data/2019-Oct.csv"
+        for frame in (pl.read_csv(csv, schema=pl_schema), pl.read_parquet(parquet)):
+            self.assertEqual(frame["price"].to_list(), [500.0, 500.0, 500.0, 500.010009765625])
+            self.assertEqual(frame.filter(pl.col("price") > 500)["product_id"].to_list(), [4])
+        pandas = pd.read_csv(csv, engine="pyarrow", dtype=pd_schema)
+        self.assertEqual(pandas["price"].tolist(), [500.0, 500.0, 500.0, 500.010009765625])
+        self.assertEqual(pandas.loc[pandas["price"] > 500, "product_id"].tolist(), [4])
+
+    @unittest.skipUnless(shutil.which("java"), "Spark requires Java")
+    def test_spark_float32_csv_matches_existing_parquet(self):
+        self.write_ecommerce()
+        csv = self.root / "data/2019-Oct.csv"
+        parquet = csv.with_suffix(".parquet")
+        pl.scan_csv(csv, schema=pl_schema).sink_parquet(parquet)
+        previous_directory = Path.cwd()
+        os.chdir(self.root)
+        self.addCleanup(os.chdir, previous_directory)
+
+        with (
+            SparkSession.builder.master("local[1]")
+            .config("spark.ui.enabled", "false")
+            .config("spark.driver.memory", "1g")
+            .getOrCreate()
+        ) as spark:
+            for frame in (
+                spark.read.option("header", "true").schema(spark_schema).csv(str(csv)),
+                spark.read.parquet(str(parquet)),
+            ):
+                self.assertIsInstance(frame.schema["price"].dataType, FloatType)
+                self.assertEqual([row[0] for row in frame.filter("price > 500").select("product_id").collect()], [4])
 
     def check_nyc(self, script):
         self.trips().write_parquet(self.taxi / "trips.parquet")

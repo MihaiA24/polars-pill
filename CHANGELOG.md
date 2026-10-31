@@ -61,8 +61,9 @@ and stored notebook outputs are unchanged; historical versions use the confirmed
 - Preprocessing normalizes names, drops obsolete columns, and adds filename-derived dates even
   when no dtype cast is needed. Canonical monthly files are skipped; rewrites use a same-directory
   temporary file and atomic replacement rather than truncating the original on write failure.
-- E-commerce prices use Float64, matching pandas and Spark. Existing Float32 Parquet must be
-  regenerated from CSV to recover source precision; it is not silently rewritten by the upgrade.
+- E-commerce `price` inputs use Float32 consistently in Polars, pandas and Spark CSV readers,
+  matching existing Parquet files. No data regeneration is required; widening would not recover
+  the source precision already discarded by Float32 storage.
 - NYC Polars analysis preserves fractional minutes; both Polars and Spark borough percentages
   divide by total trips rather than a hard-coded `8`.
 - GPU timing/profiling/streaming comparisons use the same four grouping keys. Notebook transitions
@@ -79,9 +80,12 @@ and stored notebook outputs are unchanged; historical versions use the confirmed
 
 ### Verified
 
-- All 14 root regressions pass, including actual Spark 4.3 execution on Java 21, cross-zone joins,
+- Root regressions cover actual Spark 4.3 execution on Java 21, cross-zone joins,
   preprocessing/idempotence/precision, versioned append-only logging, preservation after failed
   setup, table associations, query-time charts and legends, failure states and untrusted HTML escaping.
+- Float32 follow-up: two isolated fixture regressions pass for preprocessing and native Polars,
+  pandas and Spark inputs, including CSV/Parquet agreement at the 500 boundary. No benchmark
+  was run for this change; the e-commerce benchmark smoke below predates this dtype alignment.
 - pandas 3.1 CSV-to-Parquet parsing/aggregation and Spark 4.3 CSV/Parquet medians, nulls and threshold
   boundaries pass on bounded inputs. All four NYC Spark query outputs match CPU Polars 2.1 on
   bounded real green/yellow data. Both GPU executors capture Polars 1.44.2 / backend 26.10.2 in JSON.

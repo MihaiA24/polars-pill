@@ -88,9 +88,9 @@ Consequences worth knowing before you start it:
   an error message. An uncaught exception or killed process can still exit before recording a row.
 - **Yellow in-memory is expected to fail or thrash** on a 32 GB machine. That is the point of the
   row.
-- **Rebuild e-commerce Parquet before new comparisons.** `pl_schema["price"]` is now Float64,
-  matching pandas and Spark. Files previously written as Float32 cannot recover discarded precision;
-  regenerate them from CSV with `00_preprocess.py`.
+- **Keep existing e-commerce Parquet.** CSV `price` inputs use Polars Float32, pandas float32 and
+  Spark FloatType, matching the existing Parquet column. No regeneration or widening is needed
+  for this setup; NYC inputs are unchanged.
 
 Single runs, same arguments the script uses:
 

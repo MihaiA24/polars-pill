@@ -63,6 +63,6 @@ Both environments use pandas 3.1.0 and PySpark 4.3.0. CPU/GPU Polars remain on s
 versions. Historical results retain their timings and labels and use the pinned versions confirmed
 for those runs. Each workload has a results table and a bar chart with a library/device legend.
 
-See [RUNBOOK.md](RUNBOOK.md) for hardware/provenance details and rebuilding old Float32
-e-commerce Parquet before a fresh comparison.
+E-commerce `price` inputs use Float32 across all three libraries, matching existing Parquet files;
+no data regeneration is needed. See [RUNBOOK.md](RUNBOOK.md) for setup and hardware/provenance details.
 
