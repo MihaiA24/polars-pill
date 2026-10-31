@@ -6,11 +6,6 @@ import polars as pl
 
 from schemas import generate_polars_cast, pl_schema
 
-# No engine affinity is set: sink_* always runs on the streaming engine, and since polars 2.0 engine="auto" also
-# resolves to streaming for collect(). The eager read_parquet/write_parquet calls below run on the in-memory engine.
-# PREPROCESS FOR TALK
-
-
 # Some parquets use different names and dtypes; normalize both before merging.
 for color, column_mapping in {
     "green": {
@@ -65,8 +60,6 @@ for color, column_mapping in {
 pl.scan_csv("data/2019-Nov.csv", schema=pl_schema).sink_parquet("data/2019-Nov.parquet")
 
 pl.scan_csv("data/2019-Oct.csv", schema=pl_schema).sink_parquet("data/2019-Oct.parquet")
-
-# pl.scan_parquet("data/*.parquet").sink_parquet("data/2019.parquet")
 
 pl.scan_csv("data/2019-Oct.csv", schema=pl_schema).limit(10_000_000).sink_parquet("data/2019-Oct-10M.parquet")
 

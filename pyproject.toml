@@ -1,7 +1,6 @@
 [project]
 name = "polars-pill"
 version = "0.1.0"
-description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
@@ -26,13 +25,12 @@ cpu_polars = [
 ]
 
 gpu_polars = [
-    # RAPIDS 26.10 supports polars>=1.35,<1.45, not polars 2.x (docs/adr/0003).
+    # RAPIDS 26.10 supports polars>=1.35,<1.45, not polars 2.x.
     "polars[gpu]==1.44.2",
     "cudf-polars-cu12>=26.10.2"
 ]
 
 [tool.uv]
-# Packages have to non-conflict to uv create the correct lock.
 conflicts = [
     [
         {group = "cpu_polars"},

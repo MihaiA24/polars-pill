@@ -12,7 +12,6 @@ def ecommerce_execution(file_type: Literal["csv", "parquet"], file_path: str) ->
     duration = error = None
     try:
         start_time = perf_counter()
-        # Read the CSV with the schema
         df = pd.read_csv(file_path, engine="pyarrow", dtype=pd_schema)
         df["event_time"] = pd.to_datetime(df["event_time"], format="%Y-%m-%d %H:%M:%S %Z")
         df = df.groupby("product_id", as_index=False).agg(sum_price=("price", "median")).query("sum_price > 500")

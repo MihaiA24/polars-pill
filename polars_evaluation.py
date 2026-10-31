@@ -11,7 +11,14 @@ from schemas import pl_schema, zone_schema
 from utils import save_execution_time
 
 
-def ecommerce_execution(file_type: str, file_path: str, mode: Literal["eager", "lazy"]) -> None:
+def ecommerce_execution(
+    file_type: str,
+    file_path: str,
+    mode: Literal["eager", "lazy"],
+    engine: Literal["in-memory", "streaming"],
+) -> None:
+    if mode == "eager" and engine != "in-memory":
+        raise ValueError("Eager mode requires the in-memory engine")
     start_time = perf_counter()
 
     if file_type == "parquet":
@@ -23,15 +30,12 @@ def ecommerce_execution(file_type: str, file_path: str, mode: Literal["eager", "
         df.with_columns(pl.col("event_time").str.to_datetime(format="%Y-%m-%d %H:%M:%S %Z"))
         .group_by("product_id")
         .agg(pl.col("price").median().alias("sum_price"))
-        .filter((pl.col("sum_price") > 500))
+        .filter(pl.col("sum_price") > 500)
     )
     if mode == "eager":
-        # Eager calls run on the in-memory engine: polars 2.0 executes read_csv/read_parquet as scan_*() collected
-        # in-memory, regardless of the streaming default for lazy queries.
-        engine = "in-memory"
+        # Eager operations always use the in-memory engine.
         df.write_parquet("data/out/polars.parquet", compression="snappy", mkdir=True)
     else:
-        engine = "streaming"
         df.sink_parquet("data/out/polars.parquet", engine=engine, compression="snappy", mkdir=True)
     # Snappy compression matches the Spark default. The output is overwritten each run to save space.
     duration = perf_counter() - start_time
@@ -40,7 +44,7 @@ def ecommerce_execution(file_type: str, file_path: str, mode: Literal["eager", "
 
 def nyc_taxi_execution(
     dataset_type: Literal["nyc-green", "nyc-yellow"],
-    engine: Literal["in-memory", "streaming"] = "streaming",
+    engine: Literal["in-memory", "streaming"],
     execution_query: Literal["simple", "complex"] = "simple",
     gpu_engine: bool = False,
 ) -> None:
@@ -86,7 +90,6 @@ def nyc_taxi_execution(
             )
         duration = perf_counter() - start_time
     except Exception as e:
-        # Every failure used to be recorded as "Error (memory)", which hid typos and unsupported-GPU-op errors.
         print(f"Polars {cpu_gpu} {engine} {dataset_type} {execution_query} failed: {e!r}", file=sys.stderr)
         error = f"{type(e).__name__}: {e}"
     save_execution_time(
@@ -104,18 +107,22 @@ def nyc_taxi_execution(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # For ecommerce dataset
     parser.add_argument("--file_path", type=str)
     parser.add_argument("--file_type", type=str, default="csv")
-    parser.add_argument("--mode", type=str, default="eager")  # Eager or Lazy execution
+    parser.add_argument("--mode", type=str, default="eager")
 
-    parser.add_argument("--engine", type=str, default="in-memory")
+    parser.add_argument(
+        "--engine",
+        choices=["in-memory", "streaming"],
+        default="in-memory",
+        help="Execution engine for lazy queries; eager mode requires in-memory.",
+    )
     parser.add_argument("--gpu_engine", type=str, default="False")
-    parser.add_argument("--dataset_type", type=str, default="ecommerce")  # ecommerce, nyc-green, nyc-yellow
+    parser.add_argument("--dataset_type", type=str, default="ecommerce")
     parser.add_argument("--execution_query", type=str, default="simple")
 
     args = parser.parse_args()
     if args.dataset_type == "ecommerce":
-        ecommerce_execution(args.file_type, args.file_path, args.mode)
+        ecommerce_execution(args.file_type, args.file_path, args.mode, args.engine)
     else:
         nyc_taxi_execution(args.dataset_type, args.engine, args.execution_query, args.gpu_engine == "True")

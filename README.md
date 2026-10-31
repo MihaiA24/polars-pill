@@ -1,19 +1,10 @@
 # polars-pill
-Polars pill NTER
 
+Polars, pandas and Spark benchmark demos.
 
-## Environment setup
+## Setup
 
-Environment of the root project is set with uv [Docs](https://docs.astral.sh/uv/)
-
-Install uv running:
-```shell
-  # On Mac and Linux
-  curl -LsSf https://astral.sh/uv/install.sh | sh 
-
-  # Windows
-  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
+Install [uv](https://docs.astral.sh/uv/).
 
 Build the plugin **before** syncing: the root project depends on its local wheel.
 
@@ -24,9 +15,8 @@ uv lock --upgrade-package polars-sha
 uv sync --locked --group cpu_polars
 ```
 
-The configured wheel path targets Linux x86_64. If your build emits a different filename, update
-`[tool.uv.sources]` in `pyproject.toml` and `pyproject_with_sha_example.toml` before locking.
-Re-record the wheel hash with `uv lock --upgrade-package polars-sha` after every rebuild.
+The wheel path targets Linux x86_64. If the build emits a different filename, update
+`[tool.uv.sources]` in `pyproject.toml`. Refresh its lock hash after every rebuild.
 
 Choose one environment; syncing a group replaces the other:
 
@@ -37,8 +27,7 @@ uv sync --locked --group cpu_polars --no-dev    # CPU benchmark dependencies onl
 uv sync --locked --group gpu_polars --no-dev    # GPU benchmark dependencies only
 ```
 
-Full procedures, regression checks, and the separate cloud-monitoring environment are in
-[RUNBOOK.md](RUNBOOK.md).
+See [RUNBOOK.md](RUNBOOK.md) for benchmark options, checks and cloud setup.
 
 ## Spark setup
 For Spark 4.3, Java 17 or 21 needs to be installed:
@@ -52,6 +41,7 @@ For Spark 4.3, Java 17 or 21 needs to be installed:
 - Append-only results: [benchmarks.jsonl](benchmarks.jsonl).
 - Results tables and bar charts: [BENCHMARKS.html](BENCHMARKS.html) — open locally in a browser.
 - Run the full matrix with `./run_benchmark.sh`; it records running versions and regenerates the report.
+- Polars engines are explicit: eager uses in-memory; lazy runs in-memory and streaming separately.
 
 Regenerate the report without running benchmarks (Matplotlib is included in the development group):
 
@@ -59,10 +49,8 @@ Regenerate the report without running benchmarks (Matplotlib is included in the 
 .venv/bin/python plot_benchmarks.py
 ```
 
-Both environments use pandas 3.1.0 and PySpark 4.3.0. CPU/GPU Polars remain on separate supported
-versions. Historical results retain their timings and labels and use the pinned versions confirmed
-for those runs. Each workload has a results table and a bar chart with a library/device legend.
+Both environments use pandas 3.1.0 and PySpark 4.3.0. Each recorded run includes its library version.
 
 E-commerce `price` inputs use Float32 across all three libraries, matching existing Parquet files;
-no data regeneration is needed. See [RUNBOOK.md](RUNBOOK.md) for setup and hardware/provenance details.
+no data regeneration is needed.
 
