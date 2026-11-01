@@ -101,9 +101,9 @@ df_with_zones.groupBy("PU_Borough").agg(
     mean("tip_amount").alias("avg_tip"),
 ).withColumn(
     "percentage_of_trips", col("trip_count") / spark_sum("trip_count").over(Window.partitionBy()) * 100
-).orderBy(desc("trip_count")).write.mode(
-    "overwrite"
-).option("header", "true").csv("data/nyc-taxi/out/efficiency_by_borough.csv")
+).orderBy(desc("trip_count")).write.mode("overwrite").option("header", "true").csv(
+    "data/nyc-taxi/out/efficiency_by_borough.csv"
+)
 
 # Borough dropoff analysis
 

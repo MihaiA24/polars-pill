@@ -117,16 +117,31 @@ uv pip install --python /tmp/polars-cloud-demo/bin/python "polars-cloud==0.12.0"
 
 ## Checks
 
-Root checks use temporary fixtures; Spark cases skip without Java:
+Root checks use temporary fixtures, not production datasets or GPUs. Java 21 is installed
+in CI so Spark coverage cannot silently skip; local Spark cases skip if Java is absent:
 
 ```shell
 .venv/bin/python -m unittest discover -s tests -v
 ```
+
+The [benchmark CI workflow](.github/workflows/benchmark_checks.yml) uses Python 3.12, the
+CPU group and lightweight `checks` dependencies (Matplotlib/Ruff, without notebooks).
+It consumes `uv.lock` with `--frozen --no-install-package polars-sha` because these tests
+do not use the locally built plugin. This deliberately skips local-wheel metadata/freshness
+checks; normal development syncs still build the wheel and use `--locked`.
+Root and plugin checks use the same pinned Ruff version.
+
+The [plugin workflow](.github/workflows/publish_to_pypi.yml) separately builds native wheels,
+runs read-only formatting/lint/type checks once, and tests Python 3.10–3.15 compatibility.
+Use [plugin development commands](polars_sha/README.md#development) to reproduce those checks.
+Actions are SHA-pinned to verified releases; stale PR runs are cancelled without interrupting
+tag publication. Hosted CI does not run full-data or GPU performance benchmarks.
 
 Check the rebuilt plugin on both supported Polars versions (replace `2.1.0` with `1.44.2`):
 
 ```shell
 uv run --no-project --python .venv/bin/python --with pytest --with polars==2.1.0 \
   --with ./polars_sha/target/wheels/polars_sha-0.1.0-cp39-abi3-manylinux_2_34_x86_64.whl \
-  python -m pytest polars_sha/tests -q
+  python -I -m pytest polars_sha/tests -q
 ```
+

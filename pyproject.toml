@@ -14,11 +14,14 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
-    "cookiecutter>=2.6.0",
+checks = [
     "matplotlib>=3.11.2",
+    "ruff==0.17.3",
+]
+dev = [
+    {include-group = "checks"},
+    "cookiecutter>=2.6.0",
     "notebook>=7.4.3",
-    "ruff>=0.11.11",
 ]
 cpu_polars = [
     "polars[iceberg]==2.1.0"
@@ -44,6 +47,9 @@ polars-sha = { path = "polars_sha/target/wheels/polars_sha-0.1.0-cp39-abi3-manyl
 [tool.ruff]
 line-length = 120
 indent-width = 4
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
 
 [tool.ruff.format]
 quote-style = "double"

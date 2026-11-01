@@ -1,0 +1,64 @@
+name: Benchmark checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmark-checks-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  cpu-fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      POLARS_MAX_THREADS: '2'
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      SPARK_LOCAL_IP: '127.0.0.1'
+      JAVA_TOOL_OPTIONS: '-XX:ActiveProcessorCount=2'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        id: python
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: '0.13.6'
+          cache-dependency-glob: uv.lock
+      - name: Install locked CPU fixture dependencies
+        # Fixture tests use benchmark code, not the separately built Rust plugin.
+        # ponytail: --frozen skips unavailable wheel metadata; build the wheel to restore --locked checks.
+        run: >-
+          uv sync --frozen --no-dev --group cpu_polars --group checks
+          --no-install-package polars-sha
+          --python "${{ steps.python.outputs.python-path }}"
+      - name: Check benchmark Python
+        run: >-
+          .venv/bin/python -m ruff check
+          00_preprocess.py pandas_evaluation.py polars_evaluation.py pyspark_evaluation.py
+          utils.py plot_benchmarks.py schemas.py nyc tests
+      - name: Check benchmark Python formatting
+        run: >-
+          .venv/bin/python -m ruff format --check
+          00_preprocess.py pandas_evaluation.py polars_evaluation.py pyspark_evaluation.py
+          utils.py plot_benchmarks.py schemas.py nyc tests
+      - name: Check benchmark shell syntax
+        run: bash -n run_benchmark.sh
+      - name: Run complete CPU fixture suite
+        run: |
+          java -version
+          .venv/bin/python -m unittest discover -s tests -v

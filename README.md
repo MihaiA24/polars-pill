@@ -27,7 +27,8 @@ uv sync --locked --group cpu_polars --no-dev    # CPU benchmark dependencies onl
 uv sync --locked --group gpu_polars --no-dev    # GPU benchmark dependencies only
 ```
 
-See [RUNBOOK.md](RUNBOOK.md) for benchmark options, checks and cloud setup.
+See [RUNBOOK.md](RUNBOOK.md) for benchmark options, CPU fixture checks and cloud setup;
+see [plugin development](polars_sha/README.md#development) for read-only pre-commit checks.
 
 ## Spark setup
 For Spark 4.3, Java 17 or 21 needs to be installed:
