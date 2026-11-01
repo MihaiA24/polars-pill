@@ -20,11 +20,11 @@ class BenchmarkRecordingTests(unittest.TestCase):
                 "event_time,event_type,product_id,category_id,category_code,brand,price,user_id,user_session\n"
                 "2019-10-01 00:00:00 UTC,view,1,1,phones,brand,600,1,session\n"
             )
-            ecommerce_execution("csv", "events.csv", "eager", "in-memory")
+            self.assertTrue(ecommerce_execution("csv", "events.csv", "eager", "in-memory"))
             path = Path("benchmarks.jsonl")
             original = path.read_text()
             with contextlib.redirect_stderr(io.StringIO()):
-                nyc_taxi_execution("nyc-green", "in-memory")
+                self.assertFalse(nyc_taxi_execution("nyc-green", "in-memory"))
             self.assertTrue(path.read_text().startswith(original))
             success, failure = [json.loads(line) for line in path.read_text().splitlines()]
             self.assertEqual(success["version"], pl.__version__)
@@ -34,6 +34,7 @@ class BenchmarkRecordingTests(unittest.TestCase):
             self.assertIsNone(success["error"])
             self.assertEqual(failure["version"], pl.__version__)
             self.assertIsNone(failure["duration_seconds"])
+            self.assertIsNone(failure["total_seconds"])
             self.assertIn("FileNotFoundError", failure["error"])
             self.assertEqual(Path("README.md").read_text(), "documentation\n")
 
@@ -53,7 +54,7 @@ class BenchmarkRecordingTests(unittest.TestCase):
                 for file_type in ("csv", "parquet"):
                     for mode, engine in (("eager", "in-memory"), ("lazy", "in-memory"), ("lazy", "streaming")):
                         with self.subTest(file_type=file_type, mode=mode, engine=engine):
-                            ecommerce_execution(file_type, f"events.{file_type}", mode, engine)
+                            self.assertTrue(ecommerce_execution(file_type, f"events.{file_type}", mode, engine))
                             result = pl.read_parquet("data/out/polars.parquet").sort("product_id")
                             self.assertEqual(result.rows(), [(1, 700.0), (3, 600.0)])
                             record = json.loads(Path("benchmarks.jsonl").read_text().splitlines()[-1])

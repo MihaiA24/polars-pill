@@ -19,6 +19,7 @@ td:nth-child(-n+3) { white-space: nowrap; }
 small { display: block; }
 details { margin-top: .25rem; font-size: .8rem; }
 summary { cursor: pointer; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 figure { margin: 1rem 0 0; overflow-x: auto; }
 figcaption { font-size: .9rem; }
 svg { display: block; width: 100%; min-width: 900px; height: auto; }
@@ -28,21 +29,64 @@ svg [style*="stroke: #000000"] { stroke: currentColor !important; }
 </head>
 <body>
 <h1>Benchmark results</h1>
-<p>One table per dataset/query; every attempt is retained without averaging.
-Query times exclude startup; totals include it when recorded. Lower is better.
-Charts group bars by library and device/execution configuration, with versions side by side.
-The legend identifies library/backend versions consistently; repeated measurements stay separate.
-Historical execution labels are retained, including old eager/streaming and duplicate query labels.</p>
+<p>Tables separate cold, warm and legacy measurements. Warm rows show the median and min–max
+within one benchmark batch; raw attempts remain in JSONL. Cold charts include library/session
+startup; warm and legacy charts use query time. Cold does not mean a flushed filesystem cache.
+Adjacent bars compare versions; whiskers show min–max. Failed or incomplete groups have no bar.
+Legacy attempts retain their original timer scopes and are not pooled with the new protocol.</p>
 <section aria-labelledby="workload-1">
-<h2 id="workload-1">data/2019-Oct-20M.csv — simple</h2>
+<h2 id="workload-1">data/2019-Oct-20M.csv — simple — Legacy single measurements</h2>
 <div class="table-scroll" role="region" aria-label="Benchmark results" tabindex="0">
-<table aria-labelledby="workload-1"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Query (s)</th><th scope="col" class="number">Total (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
-<tr><td>Pandas</td><td>CPU · eager</td><td>2.3.2</td><td class="number">9.714</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Pandas</td><td>CPU · eager</td><td>3.1.0</td><td class="number">7.44128</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:32:49.723125+00:00</p></details></td></tr>
-<tr><td>Polars eager</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">1.03328</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:32:50.927703+00:00</p></details></td></tr>
-<tr><td>Polars eager</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">0.798</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
+<table aria-labelledby="workload-1"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Samples</th><th scope="col" class="number">Query median (s)</th><th scope="col" class="number">Query min–max (s)</th><th scope="col" class="number">Total median (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
+<tr><td>Pandas</td><td>CPU · eager</td><td>2.3.2</td><td class="number">1/1</td><td class="number">9.714</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 9.714,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Pandas</td><td>CPU · eager</td><td>3.1.0</td><td class="number">1/1</td><td class="number">7.44128</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:32:49.723125+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 7.441280971997912,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars eager</td><td>CPU · in-memory</td><td>1.33.1</td><td class="number">1/1</td><td class="number">0.798</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;original_engine&quot;: &quot;streaming&quot;,
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer. Eager engine corrected to in-memory: the original recorder unconditionally labelled ecommerce runs streaming.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 0.798,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars eager</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">1/1</td><td class="number">1.03328</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:32:50.927703+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 1.0332784919992264,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
 </tbody></table></div>
-<figure tabindex="0" aria-label="Scrollable query-time chart"><figcaption>Query times by library/configuration; adjacent bars compare versions. Failed attempts have no bar.</figcaption>
+<figure tabindex="0" aria-label="Scrollable latency chart"><figcaption>Query medians by library/configuration; adjacent bars compare versions. Whiskers show min–max.</figcaption>
 <svg xmlns:xlink="http://www.w3.org/1999/xlink" width="720pt" height="360pt" viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -81,36 +125,36 @@ z
 " style="fill: none"/>
    </g>
    <g id="patch_3">
-    <path d="M 59.401813 325.994291 
-L 150.104978 325.994291 
-L 150.104978 95.817984 
-L 59.401813 95.817984 
+    <path d="M 70.739708 325.994291 
+L 206.794456 325.994291 
+L 206.794456 95.817984 
+L 70.739708 95.817984 
 z
 " clip-path="url(#p358551d001)" style="fill: #1f77b4"/>
    </g>
    <g id="patch_4">
-    <path d="M 150.104978 325.994291 
-L 240.808143 325.994291 
-L 240.808143 149.670781 
-L 150.104978 149.670781 
+    <path d="M 206.794456 325.994291 
+L 342.849204 325.994291 
+L 342.849204 149.670781 
+L 206.794456 149.670781 
 z
 " clip-path="url(#p358551d001)" style="fill: #9467bd"/>
    </g>
    <g id="patch_5">
-    <path d="M 331.511308 325.994291 
-L 422.214473 325.994291 
-L 422.214473 301.51043 
-L 331.511308 301.51043 
-z
-" clip-path="url(#p358551d001)" style="fill: #8c564b"/>
-   </g>
-   <g id="patch_6">
-    <path d="M 558.269221 325.994291 
-L 648.972386 325.994291 
-L 648.972386 307.085428 
-L 558.269221 307.085428 
+    <path d="M 410.876578 325.994291 
+L 546.931325 325.994291 
+L 546.931325 307.085428 
+L 410.876578 307.085428 
 z
 " clip-path="url(#p358551d001)" style="fill: #ff7f0e"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 546.931325 325.994291 
+L 682.986073 325.994291 
+L 682.986073 301.51043 
+L 546.931325 301.51043 
+z
+" clip-path="url(#p358551d001)" style="fill: #8c564b"/>
    </g>
    <g id="matplotlib.axis_1">
     <g id="xtick_1">
@@ -121,40 +165,29 @@ L 0 3.5
 " style="stroke: #000000; stroke-width: 0.8"/>
       </defs>
       <g>
-       <use xlink:href="#m8f1de1206a" x="150.104978" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m8f1de1206a" x="206.794456" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_1">
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(132.238571 341.593705)">Pandas</text>
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(120.72529 353.595658)">CPU · eager</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(188.92805 341.593705)">Pandas</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(177.414768 353.595658)">CPU · eager</text>
      </g>
     </g>
     <g id="xtick_2">
      <g id="line2d_2">
       <g>
-       <use xlink:href="#m8f1de1206a" x="376.862891" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#m8f1de1206a" x="546.931325" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_2">
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(345.817578 341.593705)">Polars eager</text>
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(334.676953 353.59644)">CPU · in-memory</text>
-     </g>
-    </g>
-    <g id="xtick_3">
-     <g id="line2d_3">
-      <g>
-       <use xlink:href="#m8f1de1206a" x="603.620804" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
-      </g>
-     </g>
-     <g id="text_3">
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(572.575491 341.593705)">Polars eager</text>
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(563.434866 353.59644)">CPU · streaming</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(515.886013 341.593705)">Polars eager</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(504.745388 353.59644)">CPU · in-memory</text>
      </g>
     </g>
    </g>
    <g id="matplotlib.axis_2">
     <g id="ytick_1">
-     <g id="line2d_4">
+     <g id="line2d_3">
       <defs>
        <path id="m646abfc5ef" d="M 0 0 
 L -3.5 0 
@@ -164,61 +197,61 @@ L -3.5 0
        <use xlink:href="#m646abfc5ef" x="36.726021" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_4">
+     <g id="text_3">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="29.726021" y="329.793119" transform="rotate(-0 29.726021 329.793119)">0</text>
      </g>
     </g>
     <g id="ytick_2">
-     <g id="line2d_5">
+     <g id="line2d_4">
       <g>
        <use xlink:href="#m646abfc5ef" x="36.726021" y="278.603658" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_5">
+     <g id="text_4">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="29.726021" y="282.402486" transform="rotate(-0 29.726021 282.402486)">2</text>
      </g>
     </g>
     <g id="ytick_3">
-     <g id="line2d_6">
+     <g id="line2d_5">
       <g>
        <use xlink:href="#m646abfc5ef" x="36.726021" y="231.213024" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_6">
+     <g id="text_5">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="29.726021" y="235.011852" transform="rotate(-0 29.726021 235.011852)">4</text>
      </g>
     </g>
     <g id="ytick_4">
-     <g id="line2d_7">
+     <g id="line2d_6">
       <g>
        <use xlink:href="#m646abfc5ef" x="36.726021" y="183.822391" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_7">
+     <g id="text_6">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="29.726021" y="187.621219" transform="rotate(-0 29.726021 187.621219)">6</text>
      </g>
     </g>
     <g id="ytick_5">
-     <g id="line2d_8">
+     <g id="line2d_7">
       <g>
        <use xlink:href="#m646abfc5ef" x="36.726021" y="136.431757" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_8">
+     <g id="text_7">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="29.726021" y="140.230585" transform="rotate(-0 29.726021 140.230585)">8</text>
      </g>
     </g>
     <g id="ytick_6">
-     <g id="line2d_9">
+     <g id="line2d_8">
       <g>
        <use xlink:href="#m646abfc5ef" x="36.726021" y="89.041123" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_9">
+     <g id="text_8">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="29.726021" y="92.839952" transform="rotate(-0 29.726021 92.839952)">10</text>
      </g>
     </g>
-    <g id="text_10">
+    <g id="text_9">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="10.598678" y="193.642915" transform="rotate(-90 10.598678 193.642915)">Query time (seconds) — lower is better</text>
     </g>
    </g>
@@ -232,20 +265,20 @@ L 36.726021 61.291538
 L 716.99976 325.994291 
 " style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
    </g>
+   <g id="text_10">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="138.767082" y="89.41564" transform="rotate(-0 138.767082 89.41564)">9.714</text>
+   </g>
    <g id="text_11">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="104.753395" y="89.41564" transform="rotate(-0 104.753395 89.41564)">9.714</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="274.82183" y="143.268438" transform="rotate(-0 274.82183 143.268438)">7.441</text>
    </g>
    <g id="text_12">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="195.45656" y="143.268438" transform="rotate(-0 195.45656 143.268438)">7.441</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="478.903951" y="300.683085" transform="rotate(-0 478.903951 300.683085)">0.798</text>
    </g>
    <g id="text_13">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="376.862891" y="295.108086" transform="rotate(-0 376.862891 295.108086)">1.033</text>
-   </g>
-   <g id="text_14">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="603.620804" y="300.683085" transform="rotate(-0 603.620804 300.683085)">0.798</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="614.958699" y="295.108086" transform="rotate(-0 614.958699 295.108086)">1.033</text>
    </g>
    <g id="legend_1">
-    <g id="text_15">
+    <g id="text_14">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="130.686959" y="14.593577" transform="rotate(-0 130.686959 14.593577)">Version</text>
     </g>
     <g id="patch_9">
@@ -256,7 +289,7 @@ L 45.726021 22.594358
 z
 " style="fill: #1f77b4; stroke: #1f77b4; stroke-linejoin: miter"/>
     </g>
-    <g id="text_16">
+    <g id="text_15">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="73.726021" y="29.594358" transform="rotate(-0 73.726021 29.594358)">2.3.2</text>
     </g>
     <g id="patch_10">
@@ -267,7 +300,7 @@ L 45.726021 37.595139
 z
 " style="fill: #ff7f0e; stroke: #ff7f0e; stroke-linejoin: miter"/>
     </g>
-    <g id="text_17">
+    <g id="text_16">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="73.726021" y="44.595139" transform="rotate(-0 73.726021 44.595139)">1.33.1</text>
     </g>
     <g id="patch_11">
@@ -278,7 +311,7 @@ L 125.532271 22.594358
 z
 " style="fill: #9467bd; stroke: #9467bd; stroke-linejoin: miter"/>
     </g>
-    <g id="text_18">
+    <g id="text_17">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="153.532271" y="29.594358" transform="rotate(-0 153.532271 29.594358)">3.1.0</text>
     </g>
     <g id="patch_12">
@@ -289,7 +322,7 @@ L 198.976021 22.594358
 z
 " style="fill: #8c564b; stroke: #8c564b; stroke-linejoin: miter"/>
     </g>
-    <g id="text_19">
+    <g id="text_18">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="226.976021" y="29.594358" transform="rotate(-0 226.976021 29.594358)">2.1.0</text>
     </g>
    </g>
@@ -304,17 +337,81 @@ z
 </figure>
 </section>
 <section aria-labelledby="workload-2">
-<h2 id="workload-2">data/2019-Oct.csv — simple</h2>
+<h2 id="workload-2">data/2019-Oct.csv — simple — Legacy single measurements</h2>
 <div class="table-scroll" role="region" aria-label="Benchmark results" tabindex="0">
-<table aria-labelledby="workload-2"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Query (s)</th><th scope="col" class="number">Total (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
-<tr><td>Polars eager</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">2.05834</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:32:53.140185+00:00</p></details></td></tr>
-<tr><td>Polars eager</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">1.963</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars lazy</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">0.694</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars lazy</td><td>CPU · streaming</td><td>2.1.0</td><td class="number">1.20239</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:32:55.884654+00:00</p></details></td></tr>
-<tr><td>PySpark</td><td>CPU · lazy</td><td>4.0.1</td><td class="number">6.214</td><td class="number">8.209</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>PySpark</td><td>CPU · lazy</td><td>4.3.0</td><td class="number">6.01564</td><td class="number">8.37006</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:33:04.688084+00:00</p></details></td></tr>
+<table aria-labelledby="workload-2"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Samples</th><th scope="col" class="number">Query median (s)</th><th scope="col" class="number">Query min–max (s)</th><th scope="col" class="number">Total median (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
+<tr><td>Polars eager</td><td>CPU · in-memory</td><td>1.33.1</td><td class="number">1/1</td><td class="number">1.963</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;original_engine&quot;: &quot;streaming&quot;,
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer. Eager engine corrected to in-memory: the original recorder unconditionally labelled ecommerce runs streaming.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 1.963,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars eager</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">1/1</td><td class="number">2.05834</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:32:53.140185+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 2.0583392929984257,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars lazy</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">1/1</td><td class="number">0.694</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 0.694,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars lazy</td><td>CPU · streaming</td><td>2.1.0</td><td class="number">1/1</td><td class="number">1.20239</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:32:55.884654+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 1.2023870129996794,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>PySpark</td><td>CPU · lazy</td><td>4.0.1</td><td class="number">1/1</td><td class="number">6.214</td><td class="number">—</td><td class="number">8.209</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 6.214,
+      &quot;total_seconds&quot;: 8.209,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>PySpark</td><td>CPU · lazy</td><td>4.3.0</td><td class="number">1/1</td><td class="number">6.01564</td><td class="number">—</td><td class="number">8.37006</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:33:04.688084+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 6.0156381750020955,
+      &quot;total_seconds&quot;: 8.370060874000046,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
 </tbody></table></div>
-<figure tabindex="0" aria-label="Scrollable query-time chart"><figcaption>Query times by library/configuration; adjacent bars compare versions. Failed attempts have no bar.</figcaption>
+<figure tabindex="0" aria-label="Scrollable latency chart"><figcaption>Query medians by library/configuration; adjacent bars compare versions. Whiskers show min–max.</figcaption>
 <svg xmlns:xlink="http://www.w3.org/1999/xlink" width="720pt" height="360pt" viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -353,50 +450,50 @@ z
 " style="fill: none"/>
    </g>
    <g id="patch_3">
-    <path d="M 81.861239 325.994291 
-L 150.524863 325.994291 
-L 150.524863 249.750175 
-L 81.861239 249.750175 
-z
-" clip-path="url(#pf089ad5f0a)" style="fill: #8c564b"/>
-   </g>
-   <g id="patch_4">
-    <path d="M 253.520299 325.994291 
-L 322.183923 325.994291 
-L 322.183923 253.281692 
-L 253.520299 253.281692 
+    <path d="M 53.251396 325.994291 
+L 144.802894 325.994291 
+L 144.802894 253.281692 
+L 53.251396 253.281692 
 z
 " clip-path="url(#pf089ad5f0a)" style="fill: #ff7f0e"/>
    </g>
+   <g id="patch_4">
+    <path d="M 144.802894 325.994291 
+L 236.354393 325.994291 
+L 236.354393 249.750175 
+L 144.802894 249.750175 
+z
+" clip-path="url(#pf089ad5f0a)" style="fill: #8c564b"/>
+   </g>
    <g id="patch_5">
-    <path d="M 390.847547 325.994291 
-L 459.51117 325.994291 
-L 459.51117 300.287443 
-L 390.847547 300.287443 
+    <path d="M 282.130142 325.994291 
+L 373.681641 325.994291 
+L 373.681641 300.287443 
+L 282.130142 300.287443 
 z
 " clip-path="url(#pf089ad5f0a)" style="fill: #ff7f0e"/>
    </g>
    <g id="patch_6">
-    <path d="M 459.51117 325.994291 
-L 528.174794 325.994291 
-L 528.174794 281.45599 
-L 459.51117 281.45599 
+    <path d="M 373.681641 325.994291 
+L 465.233139 325.994291 
+L 465.233139 281.45599 
+L 373.681641 281.45599 
 z
 " clip-path="url(#pf089ad5f0a)" style="fill: #8c564b"/>
    </g>
    <g id="patch_7">
-    <path d="M 562.506606 325.994291 
-L 631.17023 325.994291 
-L 631.17023 95.817984 
-L 562.506606 95.817984 
+    <path d="M 511.008888 325.994291 
+L 602.560387 325.994291 
+L 602.560387 95.817984 
+L 511.008888 95.817984 
 z
 " clip-path="url(#pf089ad5f0a)" style="fill: #2ca02c"/>
    </g>
    <g id="patch_8">
-    <path d="M 631.17023 325.994291 
-L 699.833854 325.994291 
-L 699.833854 103.165617 
-L 631.17023 103.165617 
+    <path d="M 602.560387 325.994291 
+L 694.111885 325.994291 
+L 694.111885 103.165617 
+L 602.560387 103.165617 
 z
 " clip-path="url(#pf089ad5f0a)" style="fill: #e377c2"/>
    </g>
@@ -409,51 +506,40 @@ L 0 3.5
 " style="stroke: #000000; stroke-width: 0.8"/>
       </defs>
       <g>
-       <use xlink:href="#mc461a18a60" x="116.193051" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#mc461a18a60" x="144.802894" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_1">
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(85.147739 341.593705)">Polars eager</text>
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(74.007114 353.59644)">CPU · in-memory</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(113.757582 341.593705)">Polars eager</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(102.616957 353.59644)">CPU · in-memory</text>
      </g>
     </g>
     <g id="xtick_2">
      <g id="line2d_2">
       <g>
-       <use xlink:href="#mc461a18a60" x="287.852111" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#mc461a18a60" x="373.681641" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_2">
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(256.806798 341.593705)">Polars eager</text>
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(247.666173 353.59644)">CPU · streaming</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(347.046484 341.593705)">Polars lazy</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(333.495703 353.59644)">CPU · streaming</text>
      </g>
     </g>
     <g id="xtick_3">
      <g id="line2d_3">
       <g>
-       <use xlink:href="#mc461a18a60" x="459.51117" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#mc461a18a60" x="602.560387" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_3">
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(432.876014 341.593705)">Polars lazy</text>
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(419.325233 353.59644)">CPU · streaming</text>
-     </g>
-    </g>
-    <g id="xtick_4">
-     <g id="line2d_4">
-      <g>
-       <use xlink:href="#mc461a18a60" x="631.17023" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
-      </g>
-     </g>
-     <g id="text_4">
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(610.83273 341.593705)">PySpark</text>
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(606.200699 353.59644)">CPU · lazy</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(582.222887 341.593705)">PySpark</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(577.590856 353.59644)">CPU · lazy</text>
      </g>
     </g>
    </g>
    <g id="matplotlib.axis_2">
     <g id="ytick_1">
-     <g id="line2d_5">
+     <g id="line2d_4">
       <defs>
        <path id="m0e68b877f2" d="M 0 0 
 L -3.5 0 
@@ -463,81 +549,81 @@ L -3.5 0
        <use xlink:href="#m0e68b877f2" x="30.363521" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_5">
+     <g id="text_4">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="329.793119" transform="rotate(-0 23.363521 329.793119)">0</text>
      </g>
     </g>
     <g id="ytick_2">
-     <g id="line2d_6">
+     <g id="line2d_5">
       <g>
        <use xlink:href="#m0e68b877f2" x="30.363521" y="288.952723" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_6">
+     <g id="text_5">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="292.751551" transform="rotate(-0 23.363521 292.751551)">1</text>
      </g>
     </g>
     <g id="ytick_3">
-     <g id="line2d_7">
+     <g id="line2d_6">
       <g>
        <use xlink:href="#m0e68b877f2" x="30.363521" y="251.911154" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_7">
+     <g id="text_6">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="255.709982" transform="rotate(-0 23.363521 255.709982)">2</text>
      </g>
     </g>
     <g id="ytick_4">
-     <g id="line2d_8">
+     <g id="line2d_7">
       <g>
        <use xlink:href="#m0e68b877f2" x="30.363521" y="214.869585" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_8">
+     <g id="text_7">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="218.668414" transform="rotate(-0 23.363521 218.668414)">3</text>
      </g>
     </g>
     <g id="ytick_5">
-     <g id="line2d_9">
+     <g id="line2d_8">
       <g>
        <use xlink:href="#m0e68b877f2" x="30.363521" y="177.828017" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_9">
+     <g id="text_8">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="181.626845" transform="rotate(-0 23.363521 181.626845)">4</text>
      </g>
     </g>
     <g id="ytick_6">
-     <g id="line2d_10">
+     <g id="line2d_9">
       <g>
        <use xlink:href="#m0e68b877f2" x="30.363521" y="140.786448" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_10">
+     <g id="text_9">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="144.585276" transform="rotate(-0 23.363521 144.585276)">5</text>
      </g>
     </g>
     <g id="ytick_7">
-     <g id="line2d_11">
+     <g id="line2d_10">
       <g>
        <use xlink:href="#m0e68b877f2" x="30.363521" y="103.74488" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_11">
+     <g id="text_10">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="107.543708" transform="rotate(-0 23.363521 107.543708)">6</text>
      </g>
     </g>
     <g id="ytick_8">
-     <g id="line2d_12">
+     <g id="line2d_11">
       <g>
        <use xlink:href="#m0e68b877f2" x="30.363521" y="66.703311" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_12">
+     <g id="text_11">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="70.502139" transform="rotate(-0 23.363521 70.502139)">7</text>
      </g>
     </g>
-    <g id="text_13">
+    <g id="text_12">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="10.598678" y="193.642915" transform="rotate(-90 10.598678 193.642915)">Query time (seconds) — lower is better</text>
     </g>
    </g>
@@ -551,26 +637,26 @@ L 30.363521 61.291538
 L 716.99976 325.994291 
 " style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
    </g>
+   <g id="text_13">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="99.027145" y="246.879348" transform="rotate(-0 99.027145 246.879348)">1.963</text>
+   </g>
    <g id="text_14">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="116.193051" y="243.347831" transform="rotate(-0 116.193051 243.347831)">2.058</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="190.578644" y="243.347831" transform="rotate(-0 190.578644 243.347831)">2.058</text>
    </g>
    <g id="text_15">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="287.852111" y="246.879348" transform="rotate(-0 287.852111 246.879348)">1.963</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="327.905891" y="293.885099" transform="rotate(-0 327.905891 293.885099)">0.694</text>
    </g>
    <g id="text_16">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="425.179359" y="293.885099" transform="rotate(-0 425.179359 293.885099)">0.694</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="419.45739" y="275.053646" transform="rotate(-0 419.45739 275.053646)">1.202</text>
    </g>
    <g id="text_17">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="493.842982" y="275.053646" transform="rotate(-0 493.842982 275.053646)">1.202</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="556.784638" y="89.41564" transform="rotate(-0 556.784638 89.41564)">6.214</text>
    </g>
    <g id="text_18">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="596.838418" y="89.41564" transform="rotate(-0 596.838418 89.41564)">6.214</text>
-   </g>
-   <g id="text_19">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="665.502042" y="96.763273" transform="rotate(-0 665.502042 96.763273)">6.016</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="648.336136" y="96.763273" transform="rotate(-0 648.336136 96.763273)">6.016</text>
    </g>
    <g id="legend_1">
-    <g id="text_20">
+    <g id="text_19">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="124.324459" y="14.593577" transform="rotate(-0 124.324459 14.593577)">Version</text>
     </g>
     <g id="patch_11">
@@ -581,7 +667,7 @@ L 39.363521 22.594358
 z
 " style="fill: #ff7f0e; stroke: #ff7f0e; stroke-linejoin: miter"/>
     </g>
-    <g id="text_21">
+    <g id="text_20">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="67.363521" y="29.594358" transform="rotate(-0 67.363521 29.594358)">1.33.1</text>
     </g>
     <g id="patch_12">
@@ -592,7 +678,7 @@ L 39.363521 37.595139
 z
 " style="fill: #2ca02c; stroke: #2ca02c; stroke-linejoin: miter"/>
     </g>
-    <g id="text_22">
+    <g id="text_21">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="67.363521" y="44.595139" transform="rotate(-0 67.363521 44.595139)">4.0.1</text>
     </g>
     <g id="patch_13">
@@ -603,7 +689,7 @@ L 119.169771 22.594358
 z
 " style="fill: #8c564b; stroke: #8c564b; stroke-linejoin: miter"/>
     </g>
-    <g id="text_23">
+    <g id="text_22">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="147.169771" y="29.594358" transform="rotate(-0 147.169771 29.594358)">2.1.0</text>
     </g>
     <g id="patch_14">
@@ -614,7 +700,7 @@ L 192.613521 22.594358
 z
 " style="fill: #e377c2; stroke: #e377c2; stroke-linejoin: miter"/>
     </g>
-    <g id="text_24">
+    <g id="text_23">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="220.613521" y="29.594358" transform="rotate(-0 220.613521 29.594358)">4.3.0</text>
     </g>
    </g>
@@ -629,17 +715,81 @@ z
 </figure>
 </section>
 <section aria-labelledby="workload-3">
-<h2 id="workload-3">data/2019-Oct.parquet — simple</h2>
+<h2 id="workload-3">data/2019-Oct.parquet — simple — Legacy single measurements</h2>
 <div class="table-scroll" role="region" aria-label="Benchmark results" tabindex="0">
-<table aria-labelledby="workload-3"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Query (s)</th><th scope="col" class="number">Total (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
-<tr><td>Polars eager</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">0.925148</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:32:54.420768+00:00</p></details></td></tr>
-<tr><td>Polars eager</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">0.823</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars lazy</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">0.195</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars lazy</td><td>CPU · streaming</td><td>2.1.0</td><td class="number">0.18661</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:32:56.192798+00:00</p></details></td></tr>
-<tr><td>PySpark</td><td>CPU · lazy</td><td>4.0.1</td><td class="number">4.432</td><td class="number">6.145</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>PySpark</td><td>CPU · lazy</td><td>4.3.0</td><td class="number">4.6923</td><td class="number">6.67275</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:33:11.502722+00:00</p></details></td></tr>
+<table aria-labelledby="workload-3"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Samples</th><th scope="col" class="number">Query median (s)</th><th scope="col" class="number">Query min–max (s)</th><th scope="col" class="number">Total median (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
+<tr><td>Polars eager</td><td>CPU · in-memory</td><td>1.33.1</td><td class="number">1/1</td><td class="number">0.823</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;original_engine&quot;: &quot;streaming&quot;,
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer. Eager engine corrected to in-memory: the original recorder unconditionally labelled ecommerce runs streaming.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 0.823,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars eager</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">1/1</td><td class="number">0.925148</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:32:54.420768+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 0.9251481350001995,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars lazy</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">1/1</td><td class="number">0.195</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 0.195,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars lazy</td><td>CPU · streaming</td><td>2.1.0</td><td class="number">1/1</td><td class="number">0.18661</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:32:56.192798+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 0.18661018000057084,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>PySpark</td><td>CPU · lazy</td><td>4.0.1</td><td class="number">1/1</td><td class="number">4.432</td><td class="number">—</td><td class="number">6.145</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 4.432,
+      &quot;total_seconds&quot;: 6.145,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>PySpark</td><td>CPU · lazy</td><td>4.3.0</td><td class="number">1/1</td><td class="number">4.6923</td><td class="number">—</td><td class="number">6.67275</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:33:11.502722+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 4.692302824001672,
+      &quot;total_seconds&quot;: 6.67274748699856,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
 </tbody></table></div>
-<figure tabindex="0" aria-label="Scrollable query-time chart"><figcaption>Query times by library/configuration; adjacent bars compare versions. Failed attempts have no bar.</figcaption>
+<figure tabindex="0" aria-label="Scrollable latency chart"><figcaption>Query medians by library/configuration; adjacent bars compare versions. Whiskers show min–max.</figcaption>
 <svg xmlns:xlink="http://www.w3.org/1999/xlink" width="720pt" height="360pt" viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -678,50 +828,50 @@ z
 " style="fill: none"/>
    </g>
    <g id="patch_3">
-    <path d="M 81.861239 325.994291 
-L 150.524863 325.994291 
-L 150.524863 280.612058 
-L 81.861239 280.612058 
-z
-" clip-path="url(#p6467037923)" style="fill: #8c564b"/>
-   </g>
-   <g id="patch_4">
-    <path d="M 253.520299 325.994291 
-L 322.183923 325.994291 
-L 322.183923 285.622834 
-L 253.520299 285.622834 
+    <path d="M 53.251396 325.994291 
+L 144.802894 325.994291 
+L 144.802894 285.622834 
+L 53.251396 285.622834 
 z
 " clip-path="url(#p6467037923)" style="fill: #ff7f0e"/>
    </g>
+   <g id="patch_4">
+    <path d="M 144.802894 325.994291 
+L 236.354393 325.994291 
+L 236.354393 280.612058 
+L 144.802894 280.612058 
+z
+" clip-path="url(#p6467037923)" style="fill: #8c564b"/>
+   </g>
    <g id="patch_5">
-    <path d="M 390.847547 325.994291 
-L 459.51117 325.994291 
-L 459.51117 316.428758 
-L 390.847547 316.428758 
+    <path d="M 282.130142 325.994291 
+L 373.681641 325.994291 
+L 373.681641 316.428758 
+L 282.130142 316.428758 
 z
 " clip-path="url(#p6467037923)" style="fill: #ff7f0e"/>
    </g>
    <g id="patch_6">
-    <path d="M 459.51117 325.994291 
-L 528.174794 325.994291 
-L 528.174794 316.840312 
-L 459.51117 316.840312 
+    <path d="M 373.681641 325.994291 
+L 465.233139 325.994291 
+L 465.233139 316.840312 
+L 373.681641 316.840312 
 z
 " clip-path="url(#p6467037923)" style="fill: #8c564b"/>
    </g>
    <g id="patch_7">
-    <path d="M 562.506606 325.994291 
-L 631.17023 325.994291 
-L 631.17023 108.586883 
-L 562.506606 108.586883 
+    <path d="M 511.008888 325.994291 
+L 602.560387 325.994291 
+L 602.560387 108.586883 
+L 511.008888 108.586883 
 z
 " clip-path="url(#p6467037923)" style="fill: #2ca02c"/>
    </g>
    <g id="patch_8">
-    <path d="M 631.17023 325.994291 
-L 699.833854 325.994291 
-L 699.833854 95.817984 
-L 631.17023 95.817984 
+    <path d="M 602.560387 325.994291 
+L 694.111885 325.994291 
+L 694.111885 95.817984 
+L 602.560387 95.817984 
 z
 " clip-path="url(#p6467037923)" style="fill: #e377c2"/>
    </g>
@@ -734,51 +884,40 @@ L 0 3.5
 " style="stroke: #000000; stroke-width: 0.8"/>
       </defs>
       <g>
-       <use xlink:href="#mb308a08324" x="116.193051" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#mb308a08324" x="144.802894" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_1">
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(85.147739 341.593705)">Polars eager</text>
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(74.007114 353.59644)">CPU · in-memory</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(113.757582 341.593705)">Polars eager</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(102.616957 353.59644)">CPU · in-memory</text>
      </g>
     </g>
     <g id="xtick_2">
      <g id="line2d_2">
       <g>
-       <use xlink:href="#mb308a08324" x="287.852111" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#mb308a08324" x="373.681641" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_2">
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(256.806798 341.593705)">Polars eager</text>
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(247.666173 353.59644)">CPU · streaming</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(347.046484 341.593705)">Polars lazy</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(333.495703 353.59644)">CPU · streaming</text>
      </g>
     </g>
     <g id="xtick_3">
      <g id="line2d_3">
       <g>
-       <use xlink:href="#mb308a08324" x="459.51117" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
+       <use xlink:href="#mb308a08324" x="602.560387" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_3">
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(432.876014 341.593705)">Polars lazy</text>
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(419.325233 353.59644)">CPU · streaming</text>
-     </g>
-    </g>
-    <g id="xtick_4">
-     <g id="line2d_4">
-      <g>
-       <use xlink:href="#mb308a08324" x="631.17023" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
-      </g>
-     </g>
-     <g id="text_4">
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(610.83273 341.593705)">PySpark</text>
-      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(606.200699 353.59644)">CPU · lazy</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(582.222887 341.593705)">PySpark</text>
+      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(577.590856 353.59644)">CPU · lazy</text>
      </g>
     </g>
    </g>
    <g id="matplotlib.axis_2">
     <g id="ytick_1">
-     <g id="line2d_5">
+     <g id="line2d_4">
       <defs>
        <path id="m6d9028b264" d="M 0 0 
 L -3.5 0 
@@ -788,61 +927,61 @@ L -3.5 0
        <use xlink:href="#m6d9028b264" x="30.363521" y="325.994291" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_5">
+     <g id="text_4">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="329.793119" transform="rotate(-0 23.363521 329.793119)">0</text>
      </g>
     </g>
     <g id="ytick_2">
-     <g id="line2d_6">
+     <g id="line2d_5">
       <g>
        <use xlink:href="#m6d9028b264" x="30.363521" y="276.940273" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_6">
+     <g id="text_5">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="280.739101" transform="rotate(-0 23.363521 280.739101)">1</text>
      </g>
     </g>
     <g id="ytick_3">
-     <g id="line2d_7">
+     <g id="line2d_6">
       <g>
        <use xlink:href="#m6d9028b264" x="30.363521" y="227.886255" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_7">
+     <g id="text_6">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="231.685083" transform="rotate(-0 23.363521 231.685083)">2</text>
      </g>
     </g>
     <g id="ytick_4">
-     <g id="line2d_8">
+     <g id="line2d_7">
       <g>
        <use xlink:href="#m6d9028b264" x="30.363521" y="178.832237" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_8">
+     <g id="text_7">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="182.631065" transform="rotate(-0 23.363521 182.631065)">3</text>
      </g>
     </g>
     <g id="ytick_5">
-     <g id="line2d_9">
+     <g id="line2d_8">
       <g>
        <use xlink:href="#m6d9028b264" x="30.363521" y="129.778219" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_9">
+     <g id="text_8">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="133.577047" transform="rotate(-0 23.363521 133.577047)">4</text>
      </g>
     </g>
     <g id="ytick_6">
-     <g id="line2d_10">
+     <g id="line2d_9">
       <g>
        <use xlink:href="#m6d9028b264" x="30.363521" y="80.724201" style="stroke: #000000; stroke-width: 0.8"/>
       </g>
      </g>
-     <g id="text_10">
+     <g id="text_9">
       <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="23.363521" y="84.523029" transform="rotate(-0 23.363521 84.523029)">5</text>
      </g>
     </g>
-    <g id="text_11">
+    <g id="text_10">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="10.598678" y="193.642915" transform="rotate(-90 10.598678 193.642915)">Query time (seconds) — lower is better</text>
     </g>
    </g>
@@ -856,26 +995,26 @@ L 30.363521 61.291538
 L 716.99976 325.994291 
 " style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
    </g>
+   <g id="text_11">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="99.027145" y="279.220491" transform="rotate(-0 99.027145 279.220491)">0.823</text>
+   </g>
    <g id="text_12">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="116.193051" y="274.209714" transform="rotate(-0 116.193051 274.209714)">0.9251</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="190.578644" y="274.209714" transform="rotate(-0 190.578644 274.209714)">0.9251</text>
    </g>
    <g id="text_13">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="287.852111" y="279.220491" transform="rotate(-0 287.852111 279.220491)">0.823</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="327.905891" y="310.026414" transform="rotate(-0 327.905891 310.026414)">0.195</text>
    </g>
    <g id="text_14">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="425.179359" y="310.026414" transform="rotate(-0 425.179359 310.026414)">0.195</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="419.45739" y="310.437968" transform="rotate(-0 419.45739 310.437968)">0.1866</text>
    </g>
    <g id="text_15">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="493.842982" y="310.437968" transform="rotate(-0 493.842982 310.437968)">0.1866</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="556.784638" y="102.18454" transform="rotate(-0 556.784638 102.18454)">4.432</text>
    </g>
    <g id="text_16">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="596.838418" y="102.18454" transform="rotate(-0 596.838418 102.18454)">4.432</text>
-   </g>
-   <g id="text_17">
-    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="665.502042" y="89.41564" transform="rotate(-0 665.502042 89.41564)">4.692</text>
+    <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="648.336136" y="89.41564" transform="rotate(-0 648.336136 89.41564)">4.692</text>
    </g>
    <g id="legend_1">
-    <g id="text_18">
+    <g id="text_17">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="124.324459" y="14.593577" transform="rotate(-0 124.324459 14.593577)">Version</text>
     </g>
     <g id="patch_11">
@@ -886,7 +1025,7 @@ L 39.363521 22.594358
 z
 " style="fill: #ff7f0e; stroke: #ff7f0e; stroke-linejoin: miter"/>
     </g>
-    <g id="text_19">
+    <g id="text_18">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="67.363521" y="29.594358" transform="rotate(-0 67.363521 29.594358)">1.33.1</text>
     </g>
     <g id="patch_12">
@@ -897,7 +1036,7 @@ L 39.363521 37.595139
 z
 " style="fill: #2ca02c; stroke: #2ca02c; stroke-linejoin: miter"/>
     </g>
-    <g id="text_20">
+    <g id="text_19">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="67.363521" y="44.595139" transform="rotate(-0 67.363521 44.595139)">4.0.1</text>
     </g>
     <g id="patch_13">
@@ -908,7 +1047,7 @@ L 119.169771 22.594358
 z
 " style="fill: #8c564b; stroke: #8c564b; stroke-linejoin: miter"/>
     </g>
-    <g id="text_21">
+    <g id="text_20">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="147.169771" y="29.594358" transform="rotate(-0 147.169771 29.594358)">2.1.0</text>
     </g>
     <g id="patch_14">
@@ -919,7 +1058,7 @@ L 192.613521 22.594358
 z
 " style="fill: #e377c2; stroke: #e377c2; stroke-linejoin: miter"/>
     </g>
-    <g id="text_22">
+    <g id="text_21">
      <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="220.613521" y="29.594358" transform="rotate(-0 220.613521 29.594358)">4.3.0</text>
     </g>
    </g>
@@ -934,21 +1073,126 @@ z
 </figure>
 </section>
 <section aria-labelledby="workload-4">
-<h2 id="workload-4">nyc-green — simple</h2>
+<h2 id="workload-4">nyc-green — simple — Legacy single measurements</h2>
 <div class="table-scroll" role="region" aria-label="Benchmark results" tabindex="0">
-<table aria-labelledby="workload-4"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Query (s)</th><th scope="col" class="number">Total (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
-<tr><td>Polars</td><td>CPU · in-memory</td><td>1.33.1</td><td class="number">1.369</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">0.422421</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:33:12.076996+00:00</p></details></td></tr>
-<tr><td>Polars</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">0.373</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>CPU · streaming</td><td>2.1.0</td><td class="number">0.362441</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:33:14.622315+00:00</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · in-memory</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">0.869</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · in-memory</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">2.4371</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:35:03.758488+00:00</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · streaming</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">0.592</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · streaming</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">1.79705</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:35:07.195292+00:00</p></details></td></tr>
-<tr><td>PySpark</td><td>CPU · lazy</td><td>4.0.1</td><td class="number">3.243</td><td class="number">5.198</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>PySpark</td><td>CPU · lazy</td><td>4.3.0</td><td class="number">3.14568</td><td class="number">5.24759</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:33:22.029011+00:00</p></details></td></tr>
+<table aria-labelledby="workload-4"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Samples</th><th scope="col" class="number">Query median (s)</th><th scope="col" class="number">Query min–max (s)</th><th scope="col" class="number">Total median (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
+<tr><td>Polars</td><td>CPU · in-memory</td><td>1.33.1</td><td class="number">1/1</td><td class="number">1.369</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 1.369,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">1/1</td><td class="number">0.422421</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:33:12.076996+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 0.42242132400133414,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">1/1</td><td class="number">0.373</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 0.373,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>CPU · streaming</td><td>2.1.0</td><td class="number">1/1</td><td class="number">0.362441</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:33:14.622315+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 0.3624412669996673,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · in-memory</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">1/1</td><td class="number">0.869</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 0.869,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · in-memory</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">1/1</td><td class="number">2.4371</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:35:03.758488+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 2.4371014169992122,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · streaming</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">1/1</td><td class="number">0.592</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 0.592,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · streaming</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">1/1</td><td class="number">1.79705</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:35:07.195292+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 1.797054686001502,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>PySpark</td><td>CPU · lazy</td><td>4.0.1</td><td class="number">1/1</td><td class="number">3.243</td><td class="number">—</td><td class="number">5.198</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 3.243,
+      &quot;total_seconds&quot;: 5.198,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>PySpark</td><td>CPU · lazy</td><td>4.3.0</td><td class="number">1/1</td><td class="number">3.14568</td><td class="number">—</td><td class="number">5.24759</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:33:22.029011+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 3.1456815950004966,
+      &quot;total_seconds&quot;: 5.247586042998591,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
 </tbody></table></div>
-<figure tabindex="0" aria-label="Scrollable query-time chart"><figcaption>Query times by library/configuration; adjacent bars compare versions. Failed attempts have no bar.</figcaption>
+<figure tabindex="0" aria-label="Scrollable latency chart"><figcaption>Query medians by library/configuration; adjacent bars compare versions. Whiskers show min–max.</figcaption>
 <svg xmlns:xlink="http://www.w3.org/1999/xlink" width="720pt" height="360pt" viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -1340,21 +1584,126 @@ z
 </figure>
 </section>
 <section aria-labelledby="workload-5">
-<h2 id="workload-5">nyc-green — complex</h2>
+<h2 id="workload-5">nyc-green — complex — Legacy single measurements</h2>
 <div class="table-scroll" role="region" aria-label="Benchmark results" tabindex="0">
-<table aria-labelledby="workload-5"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Query (s)</th><th scope="col" class="number">Total (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
-<tr><td>Polars</td><td>CPU · in-memory</td><td>1.33.1</td><td class="number">4.516</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">1.92392</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:33:14.123750+00:00</p></details></td></tr>
-<tr><td>Polars</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">2.076</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>CPU · streaming</td><td>2.1.0</td><td class="number">1.8953</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:33:16.637724+00:00</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · in-memory</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">0.672</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · in-memory</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">1.13491</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:35:05.151758+00:00</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · streaming</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">0.787</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · streaming</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">1.3938</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:35:08.847953+00:00</p></details></td></tr>
-<tr><td>PySpark</td><td>CPU · lazy</td><td>4.0.1</td><td class="number">7.915</td><td class="number">9.546</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>PySpark</td><td>CPU · lazy</td><td>4.3.0</td><td class="number">8.03991</td><td class="number">10.0105</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:33:32.182982+00:00</p></details></td></tr>
+<table aria-labelledby="workload-5"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Samples</th><th scope="col" class="number">Query median (s)</th><th scope="col" class="number">Query min–max (s)</th><th scope="col" class="number">Total median (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
+<tr><td>Polars</td><td>CPU · in-memory</td><td>1.33.1</td><td class="number">1/1</td><td class="number">4.516</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 4.516,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">1/1</td><td class="number">1.92392</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:33:14.123750+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 1.9239228450023802,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">1/1</td><td class="number">2.076</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 2.076,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>CPU · streaming</td><td>2.1.0</td><td class="number">1/1</td><td class="number">1.8953</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:33:16.637724+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 1.8953034020014456,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · in-memory</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">1/1</td><td class="number">0.672</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 0.672,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · in-memory</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">1/1</td><td class="number">1.13491</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:35:05.151758+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 1.1349083839995728,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · streaming</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">1/1</td><td class="number">0.787</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 0.787,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · streaming</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">1/1</td><td class="number">1.3938</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:35:08.847953+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 1.3938025460010977,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>PySpark</td><td>CPU · lazy</td><td>4.0.1</td><td class="number">1/1</td><td class="number">7.915</td><td class="number">—</td><td class="number">9.546</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 7.915,
+      &quot;total_seconds&quot;: 9.546,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>PySpark</td><td>CPU · lazy</td><td>4.3.0</td><td class="number">1/1</td><td class="number">8.03991</td><td class="number">—</td><td class="number">10.0105</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:33:32.182982+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 8.039906252997753,
+      &quot;total_seconds&quot;: 10.010479709999345,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
 </tbody></table></div>
-<figure tabindex="0" aria-label="Scrollable query-time chart"><figcaption>Query times by library/configuration; adjacent bars compare versions. Failed attempts have no bar.</figcaption>
+<figure tabindex="0" aria-label="Scrollable latency chart"><figcaption>Query medians by library/configuration; adjacent bars compare versions. Whiskers show min–max.</figcaption>
 <svg xmlns:xlink="http://www.w3.org/1999/xlink" width="720pt" height="360pt" viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -1716,22 +2065,138 @@ z
 </figure>
 </section>
 <section aria-labelledby="workload-6">
-<h2 id="workload-6">nyc-yellow — simple</h2>
+<h2 id="workload-6">nyc-yellow — simple — Legacy single measurements</h2>
 <div class="table-scroll" role="region" aria-label="Benchmark results" tabindex="0">
-<table aria-labelledby="workload-6"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Query (s)</th><th scope="col" class="number">Total (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
-<tr><td>Polars</td><td>CPU · in-memory</td><td>1.33.1</td><td class="number">79.529</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>CPU · in-memory</td><td>1.33.1</td><td class="number">—</td><td class="number">—</td><td>Failed: ***(Crashed process)<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">4.12879</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:33:36.456554+00:00</p></details></td></tr>
-<tr><td>Polars</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">3.82</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>CPU · streaming</td><td>2.1.0</td><td class="number">4.07132</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:33:56.959132+00:00</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · in-memory</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">—</td><td class="number">—</td><td>Failed: Error (memory)<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · in-memory</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">—</td><td class="number">—</td><td>Failed: MemoryError: std::bad_alloc: out_of_memory: CUDA error (failed to allocate 12899340256 bytes) at: /__w/rmm/rmm/cpp/src/mr/cuda_async_view_memory_resource.cpp:43: cudaErrorMemoryAllocation out of memory<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:35:10.258626+00:00</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · streaming</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">4.983</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · streaming</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">3.10692</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:35:15.103149+00:00</p></details></td></tr>
-<tr><td>PySpark</td><td>CPU · lazy</td><td>4.0.1</td><td class="number">9.533</td><td class="number">11.589</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>PySpark</td><td>CPU · lazy</td><td>4.3.0</td><td class="number">9.35276</td><td class="number">11.8523</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:34:25.233197+00:00</p></details></td></tr>
+<table aria-labelledby="workload-6"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Samples</th><th scope="col" class="number">Query median (s)</th><th scope="col" class="number">Query min–max (s)</th><th scope="col" class="number">Total median (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
+<tr><td>Polars</td><td>CPU · in-memory</td><td>1.33.1</td><td class="number">1/1</td><td class="number">79.529</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 79.529,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>CPU · in-memory</td><td>1.33.1</td><td class="number">0/1</td><td class="number">—</td><td class="number">—</td><td class="number">—</td><td>Failed / incomplete: ***(Crashed process)<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: null,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: &quot;***(Crashed process)&quot;
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">1/1</td><td class="number">4.12879</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:33:36.456554+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 4.128785382999922,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">1/1</td><td class="number">3.82</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 3.82,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>CPU · streaming</td><td>2.1.0</td><td class="number">1/1</td><td class="number">4.07132</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:33:56.959132+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 4.071316173998639,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · in-memory</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">0/1</td><td class="number">—</td><td class="number">—</td><td class="number">—</td><td>Failed / incomplete: Error (memory)<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: null,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: &quot;Error (memory)&quot;
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · in-memory</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">0/1</td><td class="number">—</td><td class="number">—</td><td class="number">—</td><td>Failed / incomplete: MemoryError: std::bad_alloc: out_of_memory: CUDA error (failed to allocate 12899340256 bytes) at: /__w/rmm/rmm/cpp/src/mr/cuda_async_view_memory_resource.cpp:43: cudaErrorMemoryAllocation out of memory<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:35:10.258626+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: null,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: &quot;MemoryError: std::bad_alloc: out_of_memory: CUDA error (failed to allocate 12899340256 bytes) at: /__w/rmm/rmm/cpp/src/mr/cuda_async_view_memory_resource.cpp:43: cudaErrorMemoryAllocation out of memory&quot;
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · streaming</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">1/1</td><td class="number">4.983</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 4.983,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · streaming</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">1/1</td><td class="number">3.10692</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:35:15.103149+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 3.1069161250015895,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>PySpark</td><td>CPU · lazy</td><td>4.0.1</td><td class="number">1/1</td><td class="number">9.533</td><td class="number">—</td><td class="number">11.589</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 9.533,
+      &quot;total_seconds&quot;: 11.589,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>PySpark</td><td>CPU · lazy</td><td>4.3.0</td><td class="number">1/1</td><td class="number">9.35276</td><td class="number">—</td><td class="number">11.8523</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:34:25.233197+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 9.352763781000249,
+      &quot;total_seconds&quot;: 11.852306472999771,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
 </tbody></table></div>
-<figure tabindex="0" aria-label="Scrollable query-time chart"><figcaption>Query times by library/configuration; adjacent bars compare versions. Failed attempts have no bar.</figcaption>
+<figure tabindex="0" aria-label="Scrollable latency chart"><figcaption>Query medians by library/configuration; adjacent bars compare versions. Whiskers show min–max.</figcaption>
 <svg xmlns:xlink="http://www.w3.org/1999/xlink" width="720pt" height="360pt" viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
@@ -2083,20 +2548,114 @@ z
 </figure>
 </section>
 <section aria-labelledby="workload-7">
-<h2 id="workload-7">nyc-yellow — complex</h2>
+<h2 id="workload-7">nyc-yellow — complex — Legacy single measurements</h2>
 <div class="table-scroll" role="region" aria-label="Benchmark results" tabindex="0">
-<table aria-labelledby="workload-7"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Query (s)</th><th scope="col" class="number">Total (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
-<tr><td>Polars</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">15.9614</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:33:52.550549+00:00</p></details></td></tr>
-<tr><td>Polars</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">64.27</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>CPU · streaming</td><td>2.1.0</td><td class="number">15.877</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:34:13.014450+00:00</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · in-memory</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">—</td><td class="number">—</td><td>Failed: Error (memory)<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · in-memory</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">—</td><td class="number">—</td><td>Failed: MemoryError: std::bad_alloc: out_of_memory: CUDA error (failed to allocate 12899340256 bytes) at: /__w/rmm/rmm/cpp/src/mr/cuda_async_view_memory_resource.cpp:43: cudaErrorMemoryAllocation out of memory<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:35:11.740228+00:00</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · streaming</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">6.212</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>Polars</td><td>GPU · streaming</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">3.78614</td><td class="number">—</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:35:19.164085+00:00</p></details></td></tr>
-<tr><td>PySpark</td><td>CPU · lazy</td><td>4.0.1</td><td class="number">33.131</td><td class="number">35.056</td><td>Success<details><summary>Run details</summary><p>Recorded: not recorded · provenance: Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.</p></details></td></tr>
-<tr><td>PySpark</td><td>CPU · lazy</td><td>4.3.0</td><td class="number">33.3791</td><td class="number">35.3547</td><td>Success<details><summary>Run details</summary><p>Recorded: 2026-10-31T15:35:00.732869+00:00</p></details></td></tr>
+<table aria-labelledby="workload-7"><thead><tr><th scope="col">Library</th><th scope="col">Configuration</th><th scope="col">Version</th><th scope="col" class="number">Samples</th><th scope="col" class="number">Query median (s)</th><th scope="col" class="number">Query min–max (s)</th><th scope="col" class="number">Total median (s)</th><th scope="col">Result / details</th></tr></thead><tbody>
+<tr><td>Polars</td><td>CPU · in-memory</td><td>2.1.0</td><td class="number">1/1</td><td class="number">15.9614</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:33:52.550549+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 15.961402150001959,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>CPU · streaming</td><td>1.33.1</td><td class="number">1/1</td><td class="number">64.27</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 64.27,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>CPU · streaming</td><td>2.1.0</td><td class="number">1/1</td><td class="number">15.877</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:34:13.014450+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 15.876996150000195,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · in-memory</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">0/1</td><td class="number">—</td><td class="number">—</td><td class="number">—</td><td>Failed / incomplete: Error (memory)<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: null,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: &quot;Error (memory)&quot;
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · in-memory</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">0/1</td><td class="number">—</td><td class="number">—</td><td class="number">—</td><td>Failed / incomplete: MemoryError: std::bad_alloc: out_of_memory: CUDA error (failed to allocate 12899340256 bytes) at: /__w/rmm/rmm/cpp/src/mr/cuda_async_view_memory_resource.cpp:43: cudaErrorMemoryAllocation out of memory<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:35:11.740228+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: null,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: &quot;MemoryError: std::bad_alloc: out_of_memory: CUDA error (failed to allocate 12899340256 bytes) at: /__w/rmm/rmm/cpp/src/mr/cuda_async_view_memory_resource.cpp:43: cudaErrorMemoryAllocation out of memory&quot;
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · streaming</td><td>1.31.0<small> cudf-polars 25.8.0</small></td><td class="number">1/1</td><td class="number">6.212</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 6.212,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>Polars</td><td>GPU · streaming</td><td>1.44.2<small> cudf-polars 26.10.2</small></td><td class="number">1/1</td><td class="number">3.78614</td><td class="number">—</td><td class="number">—</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:35:19.164085+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 3.786136099999567,
+      &quot;total_seconds&quot;: null,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>PySpark</td><td>CPU · lazy</td><td>4.0.1</td><td class="number">1/1</td><td class="number">33.131</td><td class="number">—</td><td class="number">35.056</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;provenance&quot;: &quot;Published in README.md at 00aa8e9; pinned versions confirmed by maintainer.&quot;,
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: null,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 33.131,
+      &quot;total_seconds&quot;: 35.056,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
+<tr><td>PySpark</td><td>CPU · lazy</td><td>4.3.0</td><td class="number">1/1</td><td class="number">33.3791</td><td class="number">—</td><td class="number">35.3547</td><td>Success<details><summary>Measurement details</summary><pre>{
+  &quot;attempts&quot;: [
+    {
+      &quot;recorded_at&quot;: &quot;2026-10-31T15:35:00.732869+00:00&quot;,
+      &quot;repetition&quot;: null,
+      &quot;duration_seconds&quot;: 33.37911196099958,
+      &quot;total_seconds&quot;: 35.35470674500175,
+      &quot;error&quot;: null
+    }
+  ]
+}</pre></details></td></tr>
 </tbody></table></div>
-<figure tabindex="0" aria-label="Scrollable query-time chart"><figcaption>Query times by library/configuration; adjacent bars compare versions. Failed attempts have no bar.</figcaption>
+<figure tabindex="0" aria-label="Scrollable latency chart"><figcaption>Query medians by library/configuration; adjacent bars compare versions. Whiskers show min–max.</figcaption>
 <svg xmlns:xlink="http://www.w3.org/1999/xlink" width="720pt" height="360pt" viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">

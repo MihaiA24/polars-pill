@@ -20,7 +20,19 @@ bash run_benchmark.sh
 ```
 
 The runner uses locked dependencies, runs CPU comparisons, switches to GPU, then generates
-`BENCHMARKS.html`. Environment setup failure stops the run without deleting earlier results.
+`BENCHMARKS.html`. Setup failures abort; a failed case records its error and exits nonzero,
+while the matrix continues with later cases.
+
+Each configuration uses one process: one measured **cold** attempt, one unrecorded warm-up,
+then five measured **warm** attempts. A failure stops further attempts for that configuration;
+failed warm-ups are recorded too. Override the defaults for the matrix:
+
+```shell
+BENCHMARK_WARMUPS=0 BENCHMARK_REPETITIONS=3 ./run_benchmark.sh
+```
+
+Individual CLIs accept `--warmups N` (≥0) and `--repetitions N` (≥1).
+Missing or blank e-commerce `--file_path` arguments exit with usage status 2 without recording.
 
 - Eager Polars is in-memory. Lazy CSV/Parquet runs select in-memory and streaming separately.
 - NYC CPU engines and GPU executors are explicit. The CLI defaults to `--engine in-memory`;
@@ -29,6 +41,10 @@ The runner uses locked dependencies, runs CPU comparisons, switches to GPU, then
   In-memory runs can exhaust RAM/VRAM on yellow; failures remain part of the results.
 - Every library must perform the same work. Both NYC queries retain both zone joins, even when
   joined columns are unused: inner joins can remove rows. E-commerce price inputs use Float32.
+- All timed sinks request Snappy; pandas omits its index. Spark coalesces only the small
+  e-commerce aggregate to one writer, not NYC results.
+- Native aggregate precision is retained: Float32 inputs do not imply identical accumulator
+  or output types. The recorded output schema exposes those differences.
 - CPU/GPU comparisons also compare different Polars versions. Apply workload changes consistently
   across libraries rather than attributing all timing differences to the engine.
 
@@ -46,12 +62,21 @@ the full runner adds development dependencies after timing to generate the repor
 
 ## Results and charts
 
-`benchmarks.jsonl` is append-only. Each record includes the runtime version, UTC timestamp,
-input/query/execution labels, query seconds and any error. GPU records include the backend version.
-Spark's total includes session initialization plus the query. Failed attempts have a null duration,
-not a zero-time success; a killed process may exit before it can record a result.
+`benchmarks.jsonl` is append-only: each measured attempt records library/backend versions,
+phase, batch, repetition counts, query/total seconds and any error. Failed attempts have
+null durations, never zero-time bars; a killed process may exit before recording.
 
-To regenerate the report, include the development group in your selected environment:
+- Query time covers read/compute/write, including engine first-use work when it occurs there.
+  Cold totals add library/session startup, excluding interpreter launch; warm totals cover
+  only that attempt. Metadata probes and JSON serialization are outside these timers.
+- “Cold” means a fresh process, not a flushed filesystem cache. The cache policy is recorded.
+- Provenance includes source revision/dirty status, input paths/sizes/mtimes (not content hashes),
+  CPU/thread/OS limits, and Spark's configured memory plus actual JVM heap.
+- Output Parquet footers supply actual file counts, rows, schema and codecs. A GPU fixture
+  produced mixed Snappy/uncompressed chunks despite requesting Snappy; metadata preserves
+  actual encoding rather than assuming every chunk is compressed. Probe errors are explicit.
+
+Regenerate the report with development dependencies in your selected environment:
 
 ```shell
 .venv/bin/python plot_benchmarks.py
@@ -59,17 +84,18 @@ To regenerate the report, include the development group in your selected environ
 .venv/bin/python plot_benchmarks.py --input benchmarks.jsonl --output BENCHMARKS.html
 ```
 
-Open the HTML locally; it needs no network or Python packages to view. Each workload has a table
-and a grouped Matplotlib bar chart labelled by library and device/execution configuration.
-Versions appear side by side and in the legend; run numbers are not used. Charts use separate
-zero-based scales, mark failed attempts without zero-time bars, and keep repeated measurements
-separate rather than averaging them.
+The standalone HTML separates cold, warm and legacy protocol results. Tables show successful/
+expected samples, median and min–max within the same batch/configuration. Charts compare
+versions side by side with range whiskers; failed/incomplete groups have no bar.
+Details retain metadata and individual attempts; raw measurements stay in JSONL.
 
-The first 28 records preserve the confirmed pins and original labels from
-[`00aa8e9`](https://github.com/MihaiA24/polars-pill/commit/00aa8e90e4324f9f8469dcd0e4061617bfdc0b0f).
-Their timestamps are unknown, and historical execution/query label mistakes remain unchanged.
+The first 28 records originate from
+[`00aa8e9`](https://github.com/MihaiA24/polars-pill/commit/00aa8e90e4324f9f8469dcd0e4061617bfdc0b0f);
+their pinned versions are confirmed and timestamps unknown. Three proven eager-engine
+label mistakes are corrected with `original_engine` provenance; ambiguous query labels remain.
+Records without phase/batch metadata remain separate legacy attempts, not new warm samples.
 The original hardware description was Ryzen 9900X, 32 GB RAM + 32 GB swap and RTX 5070 Ti 16 GB;
-hardware is not captured per record.
+that full inventory is not captured per record.
 
 ## Notebooks and cloud
 

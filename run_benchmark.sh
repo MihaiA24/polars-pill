@@ -1,4 +1,16 @@
 #!/bin/bash
+warmups="${BENCHMARK_WARMUPS-1}"
+repetitions="${BENCHMARK_REPETITIONS-5}"
+if [[ ! "$warmups" =~ ^[0-9]+$ ]]; then
+  echo "BENCHMARK_WARMUPS must be an integer >= 0" >&2
+  exit 2
+fi
+if [[ ! "$repetitions" =~ ^[0-9]+$ || "$repetitions" =~ ^0+$ ]]; then
+  echo "BENCHMARK_REPETITIONS must be an integer >= 1" >&2
+  exit 2
+fi
+export BENCHMARK_BATCH_ID="${BENCHMARK_BATCH_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$-$RANDOM}"
+
 ecom_path_20M="data/2019-Oct-20M.csv"
 ecom_path="data/2019-Oct.csv"
 ecom_path_parquet="data/2019-Oct.parquet"
@@ -58,6 +70,11 @@ commands=(
 uv sync --locked --group cpu_polars --no-dev || exit "$?"
 
 for command in "${commands[@]}"; do
+  case "$command" in
+    python\ *evaluation.py*)
+      command+=" --warmups $warmups --repetitions $repetitions"
+      ;;
+  esac
 	echo "Running $command"
   SECONDS=0
   if eval "$command"; then

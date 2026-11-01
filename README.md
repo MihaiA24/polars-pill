@@ -40,8 +40,10 @@ For Spark 4.3, Java 17 or 21 needs to be installed:
 
 - Append-only results: [benchmarks.jsonl](benchmarks.jsonl).
 - Results tables and bar charts: [BENCHMARKS.html](BENCHMARKS.html) — open locally in a browser.
-- Run the full matrix with `./run_benchmark.sh`; it records running versions and regenerates the report.
+- Run the full matrix with `./run_benchmark.sh`; each configuration records cold and repeated warm measurements.
 - Polars engines are explicit: eager uses in-memory; lazy runs in-memory and streaming separately.
+- Defaults: one cold attempt, one unrecorded warm-up and five measured warm attempts in the same process.
+- Timed sinks request Snappy; pandas omits its index, and only Spark's small e-commerce result uses one writer.
 
 Regenerate the report without running benchmarks (Matplotlib is included in the development group):
 

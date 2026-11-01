@@ -8,7 +8,7 @@ from pathlib import Path
 
 from matplotlib.colors import to_rgba
 
-from plot_benchmarks import _plot_runs, load_records, render_report
+from plot_benchmarks import _plot_runs, _summarize_runs, load_records, render_report
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -28,6 +28,22 @@ def record(**changes):
         "error": None,
         **changes,
     }
+
+
+def measured_record(*, phase="warm", batch_id="batch-a", repetition=1, **changes):
+    duration = changes.get("duration_seconds", 1)
+    return record(
+        **{
+            "batch_id": batch_id,
+            "phase": phase,
+            "repetition": repetition,
+            "warmups": 1,
+            "repetitions": 3,
+            "startup_seconds": 10 if phase == "cold" else 0,
+            "total_seconds": None if duration is None else duration + (10 if phase == "cold" else 0),
+            **changes,
+        }
+    )
 
 
 class Report(HTMLParser):
@@ -91,9 +107,9 @@ class PlotBenchmarksTests(unittest.TestCase):
         )
         self.assertEqual(len(report.tables), 3)
         self.assertEqual([row[2].split()[0] for row in report.tables[0]], ["1.33.1", "2.1.0", "1.31.0"])
-        self.assertEqual([row[3:5] for row in report.tables[0]], [["1", "1000"], ["2", "—"], ["—", "—"]])
-        self.assertEqual(report.tables[1][0][3], "100")
-        self.assertEqual(report.tables[2][0][3], "50")
+        self.assertEqual([row[4:7:2] for row in report.tables[0]], [["1", "1000"], ["2", "—"], ["—", "—"]])
+        self.assertEqual(report.tables[1][0][4], "100")
+        self.assertEqual(report.tables[2][0][4], "50")
         self.assertIn("out of memory", report.tables[0][2][-1])
         self.assertIn("GPU", report.tables[0][2][1])
         self.assertIn("25.8.0", report.tables[0][2][2])
@@ -129,12 +145,50 @@ class PlotBenchmarksTests(unittest.TestCase):
             [expected_colors[0], expected_colors[1], expected_colors[1], expected_colors[1]],
         )
 
+    def test_warm_medians_ranges_and_cold_totals_keep_batches_and_legacy_samples_separate(self):
+        rows = [
+            record(duration_seconds=99),
+            record(duration_seconds=88),
+            measured_record(phase="cold"),
+            *[measured_record(repetition=index, duration_seconds=value) for index, value in enumerate((1, 2, 9), 1)],
+            *[
+                measured_record(batch_id="batch-b", repetition=index, duration_seconds=value)
+                for index, value in enumerate((20, 30, 40), 1)
+            ],
+        ]
+        report = self.report(rows)
+        self.assertEqual([len(table) for table in report.tables], [2, 1, 2])
+        self.assertEqual([row[4] for row in report.tables[0]], ["99", "88"])
+        self.assertEqual(report.tables[1][0][6], "11")
+        self.assertEqual([row[3:6] for row in report.tables[2]], [["3/3", "2", "1–9"], ["3/3", "30", "20–40"]])
+        summaries = _summarize_runs(rows)
+        colors = {("2.1.0", None): "C0"}
+        cold_axes = _plot_runs([summaries[2]], colors, metric="total_seconds").axes[0]
+        self.assertEqual([bar.get_height() for bar in cold_axes.patches], [11])
+        warm_axes = _plot_runs(summaries[3:], colors).axes[0]
+        self.assertEqual([bar.get_height() for bar in warm_axes.patches], [2, 30])
+
+    def test_failed_or_missing_warm_samples_are_not_charted_as_complete_results(self):
+        for rows in (
+            [measured_record()],
+            [
+                measured_record(),
+                measured_record(repetition=2, duration_seconds=None, total_seconds=None, error="out of memory"),
+            ],
+            [measured_record(phase="warmup", duration_seconds=None, total_seconds=None, error="warm-up failed")],
+        ):
+            with self.subTest(rows=rows):
+                report = self.report(rows)
+                self.assertFalse(any(tag == "svg" for tag, _ in report.tags))
+                self.assertEqual(len(report.tables[0]), 1)
+                self.assertNotIn("Success", report.tables[0][0][-1])
+
     def test_failed_attempts_are_not_zero_time_successes(self):
         report = self.report([record(duration_seconds=None, error="crashed"), record(duration_seconds=0)])
-        self.assertEqual([row[3] for row in report.tables[0]], ["—", "0"])
+        self.assertEqual([row[4] for row in report.tables[0]], ["—", "0"])
         self.assertIn("crashed", report.tables[0][0][-1])
         failures_only = self.report([record(duration_seconds=None, error="out of memory")])
-        self.assertEqual(failures_only.tables[0][0][3], "—")
+        self.assertEqual(failures_only.tables[0][0][4], "—")
         self.assertFalse(any(tag == "svg" for tag, _ in failures_only.tags))
 
     def test_malformed_json_reports_original_line_and_path(self):
@@ -152,7 +206,17 @@ class PlotBenchmarksTests(unittest.TestCase):
                         load_records(self.input)
                     self.assertIn(f"{self.input}:1:", str(caught.exception))
                     self.assertIn(field, str(caught.exception))
-        for invalid in (record(duration_seconds=None), record(duration_seconds=0, error="crash")):
+        for invalid in (
+            record(duration_seconds=None),
+            record(duration_seconds=0, error="crash"),
+            record(duration_seconds=None, total_seconds=1, error="crash"),
+            measured_record(phase="cold", total_seconds=None),
+            measured_record(phase="warmup"),
+            measured_record(batch_id=""),
+            measured_record(phase="unknown"),
+            measured_record(repetition=4),
+            measured_record(repetitions=True),
+        ):
             with self.subTest(record=invalid):
                 self.input.write_text(json.dumps(invalid) + "\n", encoding="utf-8")
                 with self.assertRaises(ValueError):

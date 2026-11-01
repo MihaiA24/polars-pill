@@ -30,13 +30,18 @@ class DataPipelineTests(unittest.TestCase):
             **os.environ,
             "PYTHONPATH": str(ROOT),
             "POLARS_MAX_THREADS": "2",
+            "OMP_NUM_THREADS": "2",
+            "OPENBLAS_NUM_THREADS": "2",
             "SPARK_LOCAL_IP": "127.0.0.1",
             "PYSPARK_PYTHON": sys.executable,
             "PYSPARK_SUBMIT_ARGS": (
                 "--driver-memory 1g --conf spark.sql.shuffle.partitions=2 "
                 "--conf spark.default.parallelism=2 --conf spark.ui.enabled=false pyspark-shell"
             ),
+            "JAVA_TOOL_OPTIONS": f"{os.environ.get('JAVA_TOOL_OPTIONS', '')} -XX:ActiveProcessorCount=2",
         }
+        if script in ("polars_evaluation.py", "pandas_evaluation.py", "pyspark_evaluation.py"):
+            args = (*args, "--warmups", "0", "--repetitions", "1")
         result = subprocess.run(
             [sys.executable, str(ROOT / script), *map(str, args)],
             cwd=self.root,

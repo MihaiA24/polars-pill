@@ -27,8 +27,18 @@ keys, not in whether they perform the zone joins.
 
 ## Run
 
-One measured attempt identified by library/version, input, query, execution label and device.
-It produces a query duration or a failure; Spark can also record a total including initialization.
+One measured attempt associated with a library version, workload, execution configuration and
+phase. It yields timings or a failure.
+
+## Batch
+
+Measurements collected together under one benchmark execution protocol. Repetitions from
+different batches are not pooled into a single performance estimate.
+
+## Phase
+
+Cold is the first query in a fresh process; warm follows warm-ups in that reused process.
+Neither implies a flushed filesystem cache.
 
 ## Runtime version
 
