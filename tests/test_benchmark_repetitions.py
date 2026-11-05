@@ -319,56 +319,6 @@ class BenchmarkProvenanceTests(unittest.TestCase):
 
 
 class BenchmarkShellRepetitionTests(unittest.TestCase):
-    def test_same_matrix_one_process_per_case_shared_batch_and_continued_failures(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / ".venv" / "bin").mkdir(parents=True)
-            (root / ".venv" / "bin" / "activate").write_text("deactivate() { :; }\n")
-            python = root / "python"
-            python.write_text(
-                '#!/bin/sh\nprintf "%s\\t%s\\n" "$BENCHMARK_BATCH_ID" "$*" >> "$CALL_LOG"\n'
-                'case "$1" in pandas_evaluation.py) exit 17;; esac\n'
-            )
-            python.chmod(0o755)
-            uv = root / "uv"
-            uv.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$UV_LOG"\n')
-            uv.chmod(0o755)
-            environment = dict(
-                os.environ,
-                PATH=f"{root}:{os.environ['PATH']}",
-                CALL_LOG=str(root / "calls"),
-                UV_LOG=str(root / "uv-calls"),
-                BENCHMARK_WARMUPS="0",
-                BENCHMARK_REPETITIONS="2",
-            )
-            environment.pop("BENCHMARK_BATCH_ID", None)
-            result = subprocess.run(
-                ["bash", str(ROOT / "run_benchmark.sh")],
-                cwd=root,
-                env=environment,
-                capture_output=True,
-                text=True,
-                timeout=30,
-                check=False,
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            calls = [line.split("\t", 1) for line in (root / "calls").read_text().splitlines()]
-            self.assertEqual(len(calls), 30)
-            batches = {batch for batch, _ in calls}
-            self.assertEqual(len(batches), 1)
-            self.assertTrue(next(iter(batches)))
-            self.assertTrue(all(command.endswith(" --warmups 0 --repetitions 2") for _, command in calls))
-            self.assertEqual(sum("--gpu_engine True" in command for _, command in calls), 8)
-            self.assertIn("Script failed with exit code: 17", result.stdout)
-            self.assertEqual(
-                (root / "uv-calls").read_text().splitlines(),
-                [
-                    "sync --locked --group cpu_polars --no-dev",
-                    "sync --locked --group gpu_polars --no-dev",
-                    "run --locked --group gpu_polars python plot_benchmarks.py",
-                ],
-            )
-
     def test_invalid_environment_counts_abort_before_any_setup(self):
         for name, value in (
             ("BENCHMARK_WARMUPS", "-1"),

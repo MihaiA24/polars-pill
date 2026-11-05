@@ -52,6 +52,25 @@ commands=(
   "deactivate"
   "uv sync --locked --group gpu_polars --no-dev"
   "source .venv/bin/activate"
+  # Repeat the e-commerce workloads to measure the Polars version change too.
+  "python polars_evaluation.py --file_path $ecom_path_20M --mode eager --engine in-memory"
+  "python polars_evaluation.py --file_path $ecom_path --mode eager --engine in-memory"
+  "python polars_evaluation.py --file_path $ecom_path_parquet --file_type parquet --mode eager --engine in-memory"
+  "python polars_evaluation.py --file_path $ecom_path --mode lazy --engine in-memory"
+  "python polars_evaluation.py --file_path $ecom_path_parquet --file_type parquet --mode lazy --engine in-memory"
+  "python polars_evaluation.py --file_path $ecom_path --mode lazy --engine streaming"
+  "python polars_evaluation.py --file_path $ecom_path_parquet --file_type parquet --mode lazy --engine streaming"
+
+  # Same-version CPU baselines isolate GPU acceleration from Polars version changes.
+  "python polars_evaluation.py --dataset_type nyc-green --engine in-memory --gpu_engine False --execution_query simple"
+  "python polars_evaluation.py --dataset_type nyc-green --engine in-memory --gpu_engine False --execution_query complex"
+  "python polars_evaluation.py --dataset_type nyc-green --engine streaming --gpu_engine False --execution_query simple"
+  "python polars_evaluation.py --dataset_type nyc-green --engine streaming --gpu_engine False --execution_query complex"
+  "python polars_evaluation.py --dataset_type nyc-yellow --engine in-memory --gpu_engine False --execution_query simple"
+  "python polars_evaluation.py --dataset_type nyc-yellow --engine in-memory --gpu_engine False --execution_query complex"
+  "python polars_evaluation.py --dataset_type nyc-yellow --engine streaming --gpu_engine False --execution_query simple"
+  "python polars_evaluation.py --dataset_type nyc-yellow --engine streaming --gpu_engine False --execution_query complex"
+
   # nyc green dataset
   "python polars_evaluation.py --dataset_type nyc-green --engine in-memory --gpu_engine True --execution_query simple"
   "python polars_evaluation.py --dataset_type nyc-green --engine in-memory --gpu_engine True --execution_query complex"
@@ -68,6 +87,7 @@ commands=(
 )
 
 uv sync --locked --group cpu_polars --no-dev || exit "$?"
+benchmark_failed=0
 
 for command in "${commands[@]}"; do
   case "$command" in
@@ -87,6 +107,7 @@ for command in "${commands[@]}"; do
       echo "✓ Completed in ${duration}s"
   else
       echo "✗ Script failed with exit code: $exit_code"
+      benchmark_failed=1
       case "$command" in
         "uv sync "*|"source "*|"deactivate")
           echo "Environment setup failed; recorded JSON results are preserved." >&2
@@ -97,4 +118,5 @@ for command in "${commands[@]}"; do
 done
 
 # Load development dependencies only for report generation, after timing the GPU runs.
-uv run --locked --group gpu_polars python plot_benchmarks.py
+uv run --locked --group gpu_polars python plot_benchmarks.py || exit "$?"
+exit "$benchmark_failed"

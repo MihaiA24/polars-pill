@@ -2,13 +2,13 @@
 
 ## Environment
 
-Follow [README.md](README.md#setup) to build the local plugin and install dependencies.
+Follow [README.md](README.md#setup) to install dependencies and, optionally, the local plugin.
 
-- Python 3.12; Java 17 or 21 for Spark; Rust ≥1.83 to build the plugin.
+- Python 3.12; Java 17 or 21 for Spark; Rust is needed only to build the optional plugin.
 - CPU: Polars 2.1.0 with native Iceberg planning. GPU: Polars 1.44.2 / cudf-polars 26.10.2.
   [RAPIDS requires Polars <1.45](https://pypi.org/pypi/cudf-polars-cu12/26.10.2/json); do not force it onto Polars 2.
-- Both groups use pandas 3.1.0 and PySpark 4.3.0. Syncing one group replaces the other.
-- Build the plugin before syncing and refresh its lock hash after every rebuild.
+- Both groups use pandas 3.1.1, PyArrow 26.0.1 and PySpark 4.3.0. Syncing one group replaces the other.
+- The plugin notebook needs an explicit wheel install after syncing; benchmarks do not use it.
   One wheel serves both groups; verify its FFI compatibility on both versions.
 - Download missing datasets with `download_datasets.sh`, then run `00_preprocess.py` for initial preparation.
   Existing prepared Float32 e-commerce Parquet can be reused unchanged.
@@ -19,9 +19,11 @@ Follow [README.md](README.md#setup) to build the local plugin and install depend
 bash run_benchmark.sh
 ```
 
-The runner uses locked dependencies, runs CPU comparisons, switches to GPU, then generates
-`BENCHMARKS.html`. Setup failures abort; a failed case records its error and exits nonzero,
-while the matrix continues with later cases.
+The runner uses locked dependencies, runs CPU comparisons on Polars 2.1.0, switches to
+the GPU environment, then repeats e-commerce and NYC CPU baselines on Polars 1.44.2 and
+runs GPU cases before generating `BENCHMARKS.html`. Setup failures abort immediately. Failed benchmark cases
+do not stop later cases or report generation, but the runner exits 1 if any case failed.
+A report-generation failure retains its own nonzero exit status.
 
 Each configuration uses one process: one measured **cold** attempt, one unrecorded warm-up,
 then five measured **warm** attempts. A failure stops further attempts for that configuration;
@@ -45,8 +47,9 @@ Missing or blank e-commerce `--file_path` arguments exit with usage status 2 wit
   e-commerce aggregate to one writer, not NYC results.
 - Native aggregate precision is retained: Float32 inputs do not imply identical accumulator
   or output types. The recorded output schema exposes those differences.
-- CPU/GPU comparisons also compare different Polars versions. Apply workload changes consistently
-  across libraries rather than attributing all timing differences to the engine.
+- Compare CPU 1.44.2 against GPU 1.44.2 to isolate GPU acceleration, and CPU 1.44.2 against
+  CPU 2.1.0 to measure the version change. CPU 2.1.0 versus GPU 1.44.2 changes both variables.
+  Apply workload changes consistently across libraries.
 
 Individual runs:
 
@@ -126,9 +129,9 @@ in CI so Spark coverage cannot silently skip; local Spark cases skip if Java is 
 
 The [benchmark CI workflow](.github/workflows/benchmark_checks.yml) uses Python 3.12, the
 CPU group and lightweight `checks` dependencies (Matplotlib/Ruff, without notebooks).
-It consumes `uv.lock` with `--frozen --no-install-package polars-sha` because these tests
-do not use the locally built plugin. This deliberately skips local-wheel metadata/freshness
-checks; normal development syncs still build the wheel and use `--locked`.
+Both Polars 2.1.0 and GPU-compatible 1.44.2 run the complete CPU fixture suite without CUDA.
+Each job installs `uv.lock` with `--locked`, then selects its exact Polars runtime while
+leaving the other locked dependencies unchanged. The optional plugin is installed separately.
 Root and plugin checks use the same pinned Ruff version.
 
 The [plugin workflow](.github/workflows/publish_to_pypi.yml) separately builds native wheels,

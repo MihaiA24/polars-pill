@@ -17,8 +17,13 @@ concurrency:
 
 jobs:
   cpu-fixtures:
+    name: CPU fixtures (Polars ${{ matrix.polars-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        polars-version: ['2.1.0', '1.44.2']
     env:
       POLARS_MAX_THREADS: '2'
       OMP_NUM_THREADS: '2'
@@ -41,11 +46,12 @@ jobs:
           cache-dependency-glob: uv.lock
       - name: Install locked CPU fixture dependencies
         # Fixture tests use benchmark code, not the separately built Rust plugin.
-        # ponytail: --frozen skips unavailable wheel metadata; build the wheel to restore --locked checks.
         run: >-
-          uv sync --frozen --no-dev --group cpu_polars --group checks
-          --no-install-package polars-sha
+          uv sync --locked --no-dev --group cpu_polars --group checks
           --python "${{ steps.python.outputs.python-path }}"
+      - name: Select tested Polars runtime
+        # Keep every other dependency locked; the GPU-compatible runtime needs no CUDA for CPU fixtures.
+        run: uv pip install --python .venv/bin/python "polars==${{ matrix.polars-version }}"
       - name: Check benchmark Python
         run: >-
           .venv/bin/python -m ruff check
