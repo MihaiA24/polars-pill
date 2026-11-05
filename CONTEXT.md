@@ -7,8 +7,8 @@ plan. Mode is separate from the engine that executes the work.
 
 ## Engine
 
-The query execution implementation: CPU in-memory, CPU streaming, or GPU through cudf-polars.
-Eager Polars uses in-memory; lazy queries select an engine.
+The query execution implementation. Polars selects CPU in-memory, CPU streaming, or GPU through
+cudf-polars; DuckDB uses its native engine. Eager Polars uses in-memory; lazy queries select an engine.
 
 ## Executor
 

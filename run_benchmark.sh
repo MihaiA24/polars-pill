@@ -18,6 +18,9 @@ ecom_path_parquet="data/2019-Oct.parquet"
 commands=(
    "source .venv/bin/activate"
    "python pandas_evaluation.py --file_path $ecom_path_20M"
+   "python duckdb_evaluation.py --file_path $ecom_path_20M"
+   "python duckdb_evaluation.py --file_path $ecom_path"
+   "python duckdb_evaluation.py --file_path $ecom_path_parquet --file_type parquet"
    "python polars_evaluation.py --file_path $ecom_path_20M --mode eager --engine in-memory"
    "python polars_evaluation.py --file_path $ecom_path --mode eager --engine in-memory"
    "python polars_evaluation.py --file_path $ecom_path_parquet --file_type parquet --mode eager --engine in-memory"
@@ -37,6 +40,8 @@ commands=(
 
    "python pyspark_evaluation.py --dataset_type nyc-green --execution_query simple"
    "python pyspark_evaluation.py --dataset_type nyc-green --execution_query complex"
+   "python duckdb_evaluation.py --dataset_type nyc-green --execution_query simple"
+   "python duckdb_evaluation.py --dataset_type nyc-green --execution_query complex"
 
    # nyc yellow dataset
    "python polars_evaluation.py --dataset_type nyc-yellow --engine in-memory --gpu_engine False --execution_query simple"
@@ -47,6 +52,8 @@ commands=(
 
    "python pyspark_evaluation.py --dataset_type nyc-yellow --execution_query simple"
    "python pyspark_evaluation.py --dataset_type nyc-yellow --execution_query complex"
+   "python duckdb_evaluation.py --dataset_type nyc-yellow --execution_query simple"
+   "python duckdb_evaluation.py --dataset_type nyc-yellow --execution_query complex"
 
   # Change to GPU env
   "deactivate"

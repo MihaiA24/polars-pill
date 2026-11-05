@@ -1,6 +1,6 @@
 # polars-pill
 
-Polars, pandas and Spark benchmark demos.
+Polars, DuckDB, pandas and Spark benchmark demos.
 
 ## Setup
 
@@ -44,6 +44,7 @@ For Spark 4.3, Java 17 or 21 needs to be installed:
 - Run the full matrix with `./run_benchmark.sh`; each configuration records cold and repeated warm measurements.
 - Polars engines are explicit: eager uses in-memory; lazy runs in-memory and streaming separately.
 - E-commerce and NYC repeat CPU baselines on the GPU-compatible Polars version, separating version changes from GPU acceleration.
+- DuckDB runs equivalent native SQL for e-commerce CSV/Parquet and both NYC query variants.
 - Defaults: one cold attempt, one unrecorded warm-up and five measured warm attempts in the same process.
 - Timed sinks request Snappy; pandas omits its index, and only Spark's small e-commerce result uses one writer.
 - Failed cases do not stop the matrix or report generation, but make the runner exit nonzero.
@@ -54,9 +55,9 @@ Regenerate the report without running benchmarks (Matplotlib is included in the 
 .venv/bin/python plot_benchmarks.py
 ```
 
-Both environments use pandas 3.1.1, PyArrow 26.0.1 and PySpark 4.3.0.
+Both environments use DuckDB 2.0.0, pandas 3.1.1, PyArrow 26.0.1 and PySpark 4.3.0.
 Each recorded run includes its library version.
 
-E-commerce `price` inputs use Float32 across all three libraries, matching existing Parquet files;
+E-commerce `price` inputs use Float32 across all four libraries, matching existing Parquet files;
 no data regeneration is needed.
 

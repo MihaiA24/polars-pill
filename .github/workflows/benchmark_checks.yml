@@ -55,12 +55,12 @@ jobs:
       - name: Check benchmark Python
         run: >-
           .venv/bin/python -m ruff check
-          00_preprocess.py pandas_evaluation.py polars_evaluation.py pyspark_evaluation.py
+          00_preprocess.py duckdb_evaluation.py pandas_evaluation.py polars_evaluation.py pyspark_evaluation.py
           utils.py plot_benchmarks.py schemas.py nyc tests
       - name: Check benchmark Python formatting
         run: >-
           .venv/bin/python -m ruff format --check
-          00_preprocess.py pandas_evaluation.py polars_evaluation.py pyspark_evaluation.py
+          00_preprocess.py duckdb_evaluation.py pandas_evaluation.py polars_evaluation.py pyspark_evaluation.py
           utils.py plot_benchmarks.py schemas.py nyc tests
       - name: Check benchmark shell syntax
         run: bash -n run_benchmark.sh

@@ -5,7 +5,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "deltalake>=1.6.3",
-    "duckdb>=1.5.5",
+    "duckdb>=2.0.0",
     "pyarrow>=26.0.1",
     "pyspark>=4.3.0",
     "pandas>=3.1.1",

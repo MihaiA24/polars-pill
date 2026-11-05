@@ -7,7 +7,7 @@ Follow [README.md](README.md#setup) to install dependencies and, optionally, the
 - Python 3.12; Java 17 or 21 for Spark; Rust is needed only to build the optional plugin.
 - CPU: Polars 2.1.0 with native Iceberg planning. GPU: Polars 1.44.2 / cudf-polars 26.10.2.
   [RAPIDS requires Polars <1.45](https://pypi.org/pypi/cudf-polars-cu12/26.10.2/json); do not force it onto Polars 2.
-- Both groups use pandas 3.1.1, PyArrow 26.0.1 and PySpark 4.3.0. Syncing one group replaces the other.
+- Both groups use DuckDB 2.0.0, pandas 3.1.1, PyArrow 26.0.1 and PySpark 4.3.0. Syncing one group replaces the other.
 - The plugin notebook needs an explicit wheel install after syncing; benchmarks do not use it.
   One wheel serves both groups; verify its FFI compatibility on both versions.
 - Download missing datasets with `download_datasets.sh`, then run `00_preprocess.py` for initial preparation.
@@ -39,6 +39,8 @@ Missing or blank e-commerce `--file_path` arguments exit with usage status 2 wit
 - Eager Polars is in-memory. Lazy CSV/Parquet runs select in-memory and streaming separately.
 - NYC CPU engines and GPU executors are explicit. The CLI defaults to `--engine in-memory`;
   eager + streaming is rejected. Polars 2's streaming default does not change these selections.
+- DuckDB executes native SQL with one connection reused across cold/warm attempts; its optimizer
+  selects execution strategies. It is recorded as `CPU / native`, not as a Polars streaming mode.
 - GPU queries use `raise_on_fail=True`: unsupported work is an error, not an unnoticed CPU fallback.
   In-memory runs can exhaust RAM/VRAM on yellow; failures remain part of the results.
 - Every library must perform the same work. Both NYC queries retain both zone joins, even when
@@ -63,6 +65,27 @@ Individual runs:
 Select the GPU group before a standalone GPU run. Use `--no-dev` for benchmark-only installs;
 the full runner adds development dependencies after timing to generate the report.
 
+### DuckDB SQL comparisons
+
+[duckdb_evaluation.py](duckdb_evaluation.py) contains the SQL queries; no DataFrame conversion
+or preloaded in-memory tables are included in its timed path:
+
+- E-commerce reads CSV with explicit column types (`price FLOAT`, `product_id INTEGER`) or reads
+  the prepared Parquet directly, groups by product, and filters `median(price) AS sum_price > 500`.
+- Both NYC variants retain pickup and dropoff inner joins to the zone lookup. Simple groups by
+  trip distance; complex adds dropoff zone/borough and pickup borough. Both compute trip count,
+  total revenue and fare/distance/tip means, sorted by grouping keys with nulls first.
+- Native aggregate precision is retained. Each attempt writes `data/out/duckdb.parquet` with
+  Snappy; a later attempt overwrites that file. The runner includes all three e-commerce inputs
+  and simple/complex queries for both taxi colors, once in the CPU phase.
+
+```shell
+.venv/bin/python duckdb_evaluation.py --file_path data/2019-Oct.csv
+.venv/bin/python duckdb_evaluation.py --file_path data/2019-Oct.parquet --file_type parquet
+.venv/bin/python duckdb_evaluation.py --dataset_type nyc-green --execution_query complex
+.venv/bin/python duckdb_evaluation.py --dataset_type nyc-yellow --execution_query simple
+```
+
 ## Results and charts
 
 `benchmarks.jsonl` is append-only: each measured attempt records library/backend versions,
@@ -74,7 +97,8 @@ null durations, never zero-time bars; a killed process may exit before recording
   only that attempt. Metadata probes and JSON serialization are outside these timers.
 - “Cold” means a fresh process, not a flushed filesystem cache. The cache policy is recorded.
 - Provenance includes source revision/dirty status, input paths/sizes/mtimes (not content hashes),
-  CPU/thread/OS limits, and Spark's configured memory plus actual JVM heap.
+  CPU/thread/OS limits, Spark's configured memory plus actual JVM heap, and DuckDB's actual
+  thread count, memory limit and spill directory. DuckDB uses its native default resource settings.
 - Output Parquet footers supply actual file counts, rows, schema and codecs. A GPU fixture
   produced mixed Snappy/uncompressed chunks despite requesting Snappy; metadata preserves
   actual encoding rather than assuming every chunk is compressed. Probe errors are explicit.
@@ -132,6 +156,8 @@ CPU group and lightweight `checks` dependencies (Matplotlib/Ruff, without notebo
 Both Polars 2.1.0 and GPU-compatible 1.44.2 run the complete CPU fixture suite without CUDA.
 Each job installs `uv.lock` with `--locked`, then selects its exact Polars runtime while
 leaving the other locked dependencies unchanged. The optional plugin is installed separately.
+DuckDB CLI fixtures cover Float32-sensitive medians, join filtering/multiplicity, null-first
+ordering, Snappy output and failure recording in both jobs.
 Root and plugin checks use the same pinned Ruff version.
 
 The [plugin workflow](.github/workflows/publish_to_pypi.yml) separately builds native wheels,
