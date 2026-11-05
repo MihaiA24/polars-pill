@@ -16,7 +16,7 @@ Follow [README.md](README.md#setup) to install dependencies and, optionally, the
 ## Run benchmarks
 
 ```shell
-bash run_benchmark.sh
+python3 run_benchmark.py
 ```
 
 The runner uses locked dependencies, runs CPU comparisons on Polars 2.1.0, switches to
@@ -25,12 +25,28 @@ runs GPU cases before generating `BENCHMARKS.html`. Setup failures abort immedia
 do not stop later cases or report generation, but the runner exits 1 if any case failed.
 A report-generation failure retains its own nonzero exit status.
 
+The standard-library runner keeps one live dashboard on a capable terminal: current phase,
+workload and exact command, operation progress and passed/failed/interrupted counts,
+active/total elapsed time, and recent outcomes. Failed-operation logs retain their phase and command.
+Child output is captured while updating the display.
+Status colors honor `NO_COLOR`; redirected stdout and `TERM=dumb` use plain streaming output.
+Force that mode to see all library output, including successful-operation warnings:
+
+```shell
+python3 run_benchmark.py --plain
+```
+
+Ctrl+C stops the active process group, including surviving descendants, and exits 130.
+SIGTERM cleans up with status 143. Neither starts later cases or generates a report; already
+recorded measurements remain intact. Terminal state is restored on completion, failure or interruption.
+The shell runner has been replaced; `python3 run_benchmark.py --help` describes the CLI.
+
 Each configuration uses one process: one measured **cold** attempt, one unrecorded warm-up,
 then five measured **warm** attempts. A failure stops further attempts for that configuration;
 failed warm-ups are recorded too. Override the defaults for the matrix:
 
 ```shell
-BENCHMARK_WARMUPS=0 BENCHMARK_REPETITIONS=3 ./run_benchmark.sh
+BENCHMARK_WARMUPS=0 BENCHMARK_REPETITIONS=3 python3 run_benchmark.py
 ```
 
 Individual CLIs accept `--warmups N` (≥0) and `--repetitions N` (≥1).

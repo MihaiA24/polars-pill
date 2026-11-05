@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -318,26 +319,29 @@ class BenchmarkProvenanceTests(unittest.TestCase):
         self.assertIn("os_limits", metadata)
 
 
-class BenchmarkShellRepetitionTests(unittest.TestCase):
+class BenchmarkRunnerRepetitionTests(unittest.TestCase):
     def test_invalid_environment_counts_abort_before_any_setup(self):
         for name, value in (
             ("BENCHMARK_WARMUPS", "-1"),
             ("BENCHMARK_WARMUPS", ""),
+            ("BENCHMARK_WARMUPS", "１"),
+            ("BENCHMARK_REPETITIONS", ""),
             ("BENCHMARK_REPETITIONS", "0"),
             ("BENCHMARK_REPETITIONS", "1.5"),
+            ("BENCHMARK_REPETITIONS", " 2"),
             ("BENCHMARK_REPETITIONS", "$(touch unsafe)"),
         ):
             with self.subTest(name=name, value=value), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 uv = root / "uv"
-                uv.write_text("#!/bin/sh\nexit 99\n")
+                uv.write_text("#!/bin/sh\ntouch setup-started\nexit 99\n")
                 uv.chmod(0o755)
                 environment = dict(
                     os.environ, PATH=f"{root}:{os.environ['PATH']}", BENCHMARK_WARMUPS="1", BENCHMARK_REPETITIONS="5"
                 )
                 environment[name] = value
                 result = subprocess.run(
-                    ["bash", str(ROOT / "run_benchmark.sh")],
+                    [sys.executable, str(ROOT / "run_benchmark.py"), "--plain"],
                     cwd=directory,
                     env=environment,
                     capture_output=True,
@@ -346,7 +350,7 @@ class BenchmarkShellRepetitionTests(unittest.TestCase):
                     check=False,
                 )
                 self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
-                self.assertIn(f"{name} must be an integer", result.stderr)
+                self.assertIn(name, result.stdout + result.stderr)
                 self.assertEqual(list(root.iterdir()), [uv])
 
 
