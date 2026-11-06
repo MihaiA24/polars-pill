@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import sys
+from datetime import datetime
 from importlib.metadata import version as package_version
 from time import perf_counter
 from typing import Literal
@@ -50,7 +51,15 @@ def ecommerce_execution(
         logger.exception("Polars %s %s %s failed", mode, engine, file_path)
         error = f"{type(e).__name__}: {e}"
     save_execution_time(
-        f"Polars {mode}", duration, "CPU", engine, file_path, "simple", version=pl.__version__, error=error
+        f"Polars {mode}",
+        duration,
+        "CPU",
+        engine,
+        file_path,
+        "simple",
+        version=pl.__version__,
+        error=error,
+        input_format="parquet" if file_type == "parquet" else "csv",
     )
     return error is None
 
@@ -58,7 +67,7 @@ def ecommerce_execution(
 def nyc_taxi_execution(
     dataset_type: Literal["nyc-green", "nyc-yellow"],
     engine: Literal["in-memory", "streaming"],
-    execution_query: Literal["simple", "complex", "filtered"] = "simple",
+    execution_query: Literal["simple", "complex", "filtered", "date-window"] = "simple",
     gpu_engine: bool = False,
 ) -> bool:
     cpu_gpu = "GPU" if gpu_engine else "CPU"  # Needed in the error path too, so resolve it before the try.
@@ -75,8 +84,13 @@ def nyc_taxi_execution(
         dataset = "yellow" if dataset_type == "nyc-yellow" else "green"
         out_path = "data/out/polars.parquet"
         df = pl.scan_parquet(f"data/nyc-taxi/{dataset}.parquet")
-        if execution_query == "filtered":
+        if execution_query in ("filtered", "date-window"):
             df = df.filter((pl.col("trip_distance") > 0) & (pl.col("fare_amount") > 0))
+            if execution_query == "date-window":
+                df = df.filter(
+                    (pl.col("tpep_pickup_datetime") >= datetime(2019, 10, 1))
+                    & (pl.col("tpep_pickup_datetime") < datetime(2019, 10, 2))
+                )
             keys = ["PULocationID"]
         else:
             df_zones = pl.scan_csv("data/nyc-taxi/taxi_zone_lookup.csv", schema=zone_schema)
@@ -110,6 +124,7 @@ def nyc_taxi_execution(
         version=pl.__version__,
         backend_version=backend_version,
         error=error,
+        input_format="parquet",
     )
     return error is None
 
@@ -128,7 +143,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--gpu_engine", type=str, default="False")
     parser.add_argument("--dataset_type", type=str, default="ecommerce")
-    parser.add_argument("--execution_query", choices=["simple", "complex", "filtered"], default="simple")
+    parser.add_argument("--execution_query", choices=["simple", "complex", "filtered", "date-window"], default="simple")
     add_benchmark_arguments(parser)
 
     args = parser.parse_args()
@@ -143,7 +158,7 @@ if __name__ == "__main__":
         )
         dataset = "yellow" if args.dataset_type == "nyc-yellow" else "green"
         input_paths = (f"data/nyc-taxi/{dataset}.parquet",)
-        if args.execution_query != "filtered":
+        if args.execution_query not in ("filtered", "date-window"):
             input_paths += ("data/nyc-taxi/taxi_zone_lookup.csv",)
     success = run_benchmark(
         execute,
@@ -152,5 +167,6 @@ if __name__ == "__main__":
         process_started=PROCESS_STARTED,
         input_paths=input_paths,
         output_path="data/out/polars.parquet",
+        profile_memory=args.profile_memory,
     )
     sys.exit(0 if success else 1)

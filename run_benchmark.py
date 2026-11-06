@@ -40,7 +40,7 @@ class Operation:
         return " | ".join([engine, dataset, *details])
 
 
-def operations(warmups, repetitions):
+def operations(warmups, repetitions, *, datasets=None, queries=None, device="all"):
     """Preserve the CPU, same-version baseline, and GPU matrix ordering."""
     counts = ("--warmups", warmups, "--repetitions", repetitions)
 
@@ -72,7 +72,7 @@ def operations(warmups, repetitions):
                 query,
             )
             for engine in ("in-memory", "streaming")
-            for query in ("simple", "complex", "filtered")
+            for query in ("simple", "complex", "filtered", "date-window")
         ]
 
     cpu = "CPU benchmarks"
@@ -88,7 +88,7 @@ def operations(warmups, repetitions):
     for dataset in ("nyc-green", "nyc-yellow"):
         matrix.extend(polars_nyc(cpu, dataset, "False"))
         for script in ("pyspark", "duckdb"):
-            for query in ("simple", "complex", "filtered"):
+            for query in ("simple", "complex", "filtered", "date-window"):
                 matrix.append(benchmark(cpu, script, "--dataset_type", dataset, "--execution_query", query))
     matrix.append(Operation("GPU setup", ("uv", "sync", "--locked", "--group", "gpu_polars", "--no-dev")))
     baseline = "GPU-version CPU baselines"
@@ -97,16 +97,41 @@ def operations(warmups, repetitions):
         matrix.extend(polars_nyc(baseline, dataset, "False"))
     for dataset in ("nyc-green", "nyc-yellow"):
         matrix.extend(polars_nyc("GPU benchmarks", dataset, "True"))
-    matrix.append(
-        Operation("Report", ("uv", "run", "--locked", "--group", "gpu_polars", "python", "plot_benchmarks.py"))
-    )
-    return matrix
+    selected = []
+    setup = None
+    last_setup = None
+    for operation in matrix:
+        if not operation.benchmark:
+            setup = operation
+            continue
+        options = dict(zip(operation.command[2::2], operation.command[3::2]))
+        dataset = options.get("--dataset_type", "ecommerce")
+        query = options.get("--execution_query", "simple")
+        execution_device = "gpu" if options.get("--gpu_engine") == "True" else "cpu"
+        if (
+            (datasets is not None and dataset not in datasets)
+            or (queries is not None and query not in queries)
+            or (device != "all" and execution_device != device)
+        ):
+            continue
+        if setup != last_setup:
+            selected.append(setup)
+            last_setup = setup
+        selected.append(operation)
+    if selected:
+        group = last_setup.command[last_setup.command.index("--group") + 1]
+        selected.append(
+            Operation("Report", ("uv", "run", "--locked", "--group", group, "python", "plot_benchmarks.py"))
+        )
+    return selected
 
 
 def elapsed(seconds):
-    minutes, seconds = divmod(int(seconds), 60)
+    total_ms = max(0, round(seconds * 1000))
+    seconds, milliseconds = divmod(total_ms, 1000)
+    minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
-    return f"{hours:02}:{minutes:02}:{seconds:02}"
+    return f"{hours:02}:{minutes:02}:{seconds:02}.{milliseconds:03} ({total_ms:,} ms)"
 
 
 class Dashboard:
@@ -144,40 +169,66 @@ class Dashboard:
         available = max(1, height - 1)
         now = time.monotonic()
         phase = self.active.phase if self.active else (outcome or "Complete")
-        progress = f"Operations {self.completed}/{self.total} | passed {self.passed} | failed {self.failed}"
+        counts = f"{self.passed} passed | {self.failed} failed"
         if self.cancelled:
-            progress += f" | interrupted {self.cancelled}"
-        timers = f"Active {elapsed(now - self.active_started) if self.active else '--:--:--'} | total {elapsed(now - self.started)}"
-        lines = ["Benchmark suite | " + self.suite, "Phase: " + phase, progress, timers]
-        if self.active:
-            lines.append("Workload: " + self.active.workload)
-            # Wrap explicitly, leaving the final terminal column unused to avoid autowrap.
-            command = textwrap.wrap(
-                "Command: " + shlex.join(self.active.command),
-                width=width,
-                replace_whitespace=False,
-                drop_whitespace=False,
-            ) or [""]
-            lines.extend(command[: max(1, available - len(lines))])
-        bar_width = min(32, max(0, width - 4))
-        if bar_width and len(lines) < available:
+            counts += f" | {self.cancelled} interrupted"
+        percentage = 100 * self.completed / self.total
+        bar_width = min(28, max(0, width - 22 - 2 * len(str(self.total))))
+        if bar_width:
             filled = bar_width * self.completed // self.total
-            lines.append("[" + "#" * filled + "-" * (bar_width - filled) + "]")
+            bar = "#" * filled + "-" * (bar_width - filled)
+            progress = f"Progress: [{bar}] {percentage:5.1f}%  {self.completed}/{self.total}"
+        else:
+            progress = f"Progress: {self.completed}/{self.total} ({percentage:.1f}%)"
+        spacious = available >= 16
+        lines = ["Benchmark suite  " + self.suite]
+        if spacious:
+            lines.extend(["-" * width, ""])
+        lines.extend([progress, f"{'Results:':<10}{counts}"])
+        if spacious:
+            lines.append("")
+        lines.extend(
+            [
+                f"{'Active:':<10}{elapsed(now - self.active_started) if self.active else '--:--:--.---'}",
+                f"{'Total:':<10}{elapsed(now - self.started)}",
+            ]
+        )
+        if spacious:
+            lines.append("")
+        if self.active:
+            marker = "|/-\\"[int((now - self.active_started) * 10) % 4]
+            phase = f"{marker} {phase}"
+        fields = [("Phase:", phase)]
+        if self.active:
+            fields.extend([("Workload:", self.active.workload), ("Command:", shlex.join(self.active.command))])
+        for label, value in fields:
+            # Keep continuation lines aligned without triggering terminal autowrap.
+            lines.extend(
+                textwrap.wrap(
+                    f"{label:<10}{value}",
+                    width=width,
+                    subsequent_indent=" " * min(10, width - 1),
+                    replace_whitespace=False,
+                    drop_whitespace=False,
+                )
+            )
         room = available - len(lines)
-        if room > 0:
-            lines.extend(list(self.recent)[-room:])
+        if self.recent and room >= 3:
+            lines.extend(["", "Recent outcomes:"])
+            lines.extend(f"  {result}" for result in list(self.recent)[-(room - 2) :])
         self.clear()
         for line in lines[:available]:
             visible = "".join(char if char.isascii() and char.isprintable() else "?" for char in line)
             style = ""
             if self.colors:
-                if line.startswith("FAIL"):
+                status_line = line.lstrip()
+                if status_line.startswith("FAIL"):
                     style = "\033[31m"
-                elif line.startswith("INTERRUPTED"):
+                elif status_line.startswith("INTERRUPTED"):
                     style = "\033[33m"
-                elif line.startswith("PASS"):
+                elif status_line.startswith("PASS"):
                     style = "\033[32m"
-                elif line.startswith(("Phase:", "[")):
+                elif line.startswith(("Phase:", "Progress:")):
                     if self.failed:
                         style = "\033[31m"
                     elif self.cancelled:
@@ -186,7 +237,7 @@ class Dashboard:
                         style = "\033[36m"
                 elif line.startswith("Benchmark suite"):
                     style = "\033[1m"
-                elif line.startswith("Active "):
+                elif line.startswith(("Active:", "Total:")):
                     style = "\033[2m"
             sys.stdout.write(style + visible[:width] + ("\033[0m" if style else "") + "\n")
         self.rows = min(len(lines), available)
@@ -198,8 +249,12 @@ class Dashboard:
         if self.live:
             self.render()
         else:
-            print(f"\n[{self.completed + 1}/{self.total}] {operation.phase}: {operation.workload}", flush=True)
-            print("Running " + shlex.join(operation.command), flush=True)
+            print(
+                f"\n[{self.completed + 1}/{self.total}] {operation.phase}\n"
+                f"\n  {'Workload:':<10}{operation.workload}\n"
+                f"  {'Command:':<10}{shlex.join(operation.command)}\n",
+                flush=True,
+            )
 
     def complete(self, status, interrupted=False):
         duration = elapsed(time.monotonic() - self.active_started)
@@ -207,7 +262,7 @@ class Dashboard:
         workload = self.active.workload
         if not self.active.benchmark:
             workload = f"{self.active.phase}: {workload}"
-        result = f"{outcome} ({status}) in {duration} | {workload}"
+        result = f"{outcome:<11} ({status:>3})  {duration}  | {workload}"
         self.completed += 1
         self.passed += status == 0
         self.failed += status != 0 and not interrupted
@@ -215,7 +270,7 @@ class Dashboard:
         self.recent.append(result)
         self.active = None
         if not self.live:
-            print(result, flush=True)
+            print("\n  " + result, flush=True)
 
     def diagnostic(self, message):
         self.clear()
@@ -242,9 +297,12 @@ class Dashboard:
         else:
             interruptions = f", {self.cancelled} interrupted" if self.cancelled else ""
             print(
-                f"{outcome}: {self.completed}/{self.total} operations completed, "
-                f"{self.passed} passed, {self.failed} failed{interruptions}; "
-                f"total {elapsed(time.monotonic() - self.started)}; suite {self.suite}",
+                f"\n{outcome}",
+                f"  {'Operations:':<12}{self.completed}/{self.total} completed",
+                f"  {'Results:':<12}{self.passed} passed, {self.failed} failed{interruptions}",
+                f"  {'Elapsed:':<12}{elapsed(time.monotonic() - self.started)}",
+                f"  {'Suite:':<12}{self.suite}",
+                sep="\n",
                 flush=True,
             )
         self.rows = 0
@@ -312,6 +370,17 @@ def main():
     parser.add_argument(
         "--plain", action="store_true", help="Stream commands and child output without a live dashboard."
     )
+    parser.add_argument(
+        "--dataset", nargs="+", choices=("ecommerce", "nyc-green", "nyc-yellow"), help="Run only these datasets."
+    )
+    parser.add_argument(
+        "--query",
+        nargs="+",
+        choices=("simple", "complex", "filtered", "date-window"),
+        help="Run only these query workloads (ecommerce is simple).",
+    )
+    parser.add_argument("--device", choices=("cpu", "gpu", "all"), default="all", help="Filter execution devices.")
+    parser.add_argument("--profile-memory", action="store_true", help="Sample process-tree RAM and GPU memory.")
     args = parser.parse_args()
     environment = os.environ.copy()
     counts = []
@@ -321,6 +390,11 @@ def main():
             print(f"{name} must be an integer >= {minimum}", file=sys.stderr)
             return 2
         counts.append(value)
+    matrix = operations(*counts, datasets=args.dataset, queries=args.query, device=args.device)
+    if not matrix:
+        parser.error("No benchmark workloads match the selected dataset, query, and device.")
+    if args.profile_memory:
+        environment["BENCHMARK_PROFILE_MEMORY"] = "1"
     venv = os.path.abspath(".venv")
     environment["VIRTUAL_ENV"] = venv
     environment["PATH"] = os.path.join(venv, "bin") + os.pathsep + environment.get("PATH", "")
@@ -328,7 +402,6 @@ def main():
     environment["BENCHMARK_SUITE_ID"] = suite
     environment["BENCHMARK_SUITE_STARTED_AT"] = datetime.now(UTC).isoformat()
     environment.pop("BENCHMARK_BATCH_ID", None)
-    matrix = operations(*counts)
     live = not args.plain and sys.stdout.isatty() and environment.get("TERM") != "dumb"
     dashboard = Dashboard(live, len(matrix), suite)
     interrupted = [0]

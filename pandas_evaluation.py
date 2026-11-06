@@ -27,7 +27,9 @@ def ecommerce_execution(file_path: str) -> bool:
     except Exception as e:
         logger.exception("Pandas benchmark failed")
         error = f"{type(e).__name__}: {e}"
-    save_execution_time("Pandas", duration, "CPU", "eager", file_path, "simple", version=pd.__version__, error=error)
+    save_execution_time(
+        "Pandas", duration, "CPU", "eager", file_path, "simple", version=pd.__version__, error=error, input_format="csv"
+    )
     return error is None
 
 
@@ -47,5 +49,6 @@ if __name__ == "__main__":
         process_started=PROCESS_STARTED,
         input_paths=(args.file_path,),
         output_path="data/out/pandas.parquet",
+        profile_memory=args.profile_memory,
     )
     sys.exit(0 if success else 1)

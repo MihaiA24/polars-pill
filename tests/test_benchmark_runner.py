@@ -28,6 +28,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
             BENCHMARK_STATUS="0",
             GPU_SETUP_STATUS="0",
             REPORT_STATUS="0",
+            BENCHMARK_PROFILE_MEMORY="0",
         )
         self.previous_results = {
             "benchmarks.jsonl": '{"duration_seconds": 1.25}\n',
@@ -51,15 +52,21 @@ class BenchmarkRunnerTests(unittest.TestCase):
             "uv",
             "#!/bin/sh\n"
             'if [ "$1" = "run" ]; then\n'
+            '  [ "$4" = "$(cat active-group)" ] || exit 39\n'
+            '  echo "$4" > report-group\n'
             "  touch report-generated\n"
             '  exit "$REPORT_STATUS"\n'
             "fi\n"
             'for argument in "$@"; do\n'
             '  if [ "$argument" = "gpu_polars" ]; then\n'
+            "    echo gpu_polars > active-group\n"
+            "    echo gpu_polars >> setup-groups\n"
             "    touch gpu-setup-started\n"
             '    exit "$GPU_SETUP_STATUS"\n'
             "  fi\n"
-            "done\n",
+            "done\n"
+            "echo cpu_polars > active-group\n"
+            "echo cpu_polars >> setup-groups\n",
         )
 
     def write_executable(self, name, contents):
@@ -109,13 +116,14 @@ class BenchmarkRunnerTests(unittest.TestCase):
                     self.assertIn("fixture: benchmark could not read its input", output)
                 self.assertNotIn("\x1b", output)
 
-    def test_real_protocol_rows_keep_suites_and_configuration_batches_separate(self):
+    def install_protocol_fixture(self):
         self.write_executable(
             ".venv/bin/python",
             f"#!{sys.executable}\n"
             + textwrap.dedent(
                 f"""\
                 import sys
+                from pathlib import Path
                 from unittest.mock import patch
 
                 sys.path.insert(0, {str(ROOT)!r})
@@ -125,7 +133,13 @@ class BenchmarkRunnerTests(unittest.TestCase):
 
                 def execute():
                     utils.save_execution_time(
-                        "Fixture", 0.25, "CPU", " ".join(sys.argv[1:-4]), "fixture.csv", "simple", version="1"
+                        sys.argv[1].removesuffix("_evaluation.py"),
+                        0.25,
+                        "GPU" if options.get("--gpu_engine") == "True" else "CPU",
+                        options.get("--engine", "native"),
+                        options.get("--dataset_type", "ecommerce"),
+                        options.get("--execution_query", "simple"),
+                        version=Path("active-group").read_text().strip(),
                     )
                     return True
 
@@ -141,6 +155,16 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 """
             ),
         )
+
+    def protocol_rows(self):
+        return [
+            json.loads(line)
+            for line in (self.work / "benchmarks.jsonl").read_text().splitlines()
+            if "suite_id" in json.loads(line)
+        ]
+
+    def test_real_protocol_rows_keep_suites_and_configuration_batches_separate(self):
+        self.install_protocol_fixture()
         previous = (self.work / "benchmarks.jsonl").read_bytes()
         suites = []
         for suite_override in ("", "", "explicit-fixture-suite"):
@@ -151,13 +175,14 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 BENCHMARK_SUITE_STARTED_AT="2000-01-01T00:00:00+00:00",
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            rows = [
-                json.loads(line)
-                for line in (self.work / "benchmarks.jsonl").read_text().splitlines()
-                if "suite_id" in json.loads(line)
-            ]
+            rows = self.protocol_rows()
             current_suite = rows[-1]["suite_id"]
             current = [row for row in rows if row["suite_id"] == current_suite]
+            cold = [row for row in current if row["phase"] == "cold"]
+            self.assertEqual(len(cold), 84)
+            self.assertEqual({row["dataset"] for row in cold}, {"ecommerce", "nyc-green", "nyc-yellow"})
+            self.assertEqual({row["query"] for row in cold}, {"simple", "complex", "filtered", "date-window"})
+            self.assertEqual(sum(row["query"] == "date-window" for row in cold), 16)
             self.assertTrue(current_suite)
             self.assertNotIn(current_suite, suites)
             if suite_override:
@@ -180,6 +205,90 @@ class BenchmarkRunnerTests(unittest.TestCase):
             self.assertEqual({row["suite_id"] for row in rows}, set(suites))
             self.assertEqual(len({row["batch_id"] for row in rows}), len(batches) * len(suites))
         self.assertTrue((self.work / "benchmarks.jsonl").read_bytes().startswith(previous))
+
+    def test_targeted_gpu_queries_profile_only_selected_workloads(self):
+        self.install_protocol_fixture()
+        result = self.run_runner(
+            "--plain",
+            "--dataset",
+            "nyc-green",
+            "--query",
+            "filtered",
+            "date-window",
+            "--device",
+            "gpu",
+            "--profile-memory",
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rows = self.protocol_rows()
+        cold = [row for row in rows if row["phase"] == "cold"]
+        self.assertEqual(
+            [(row["library"], row["dataset"], row["query"], row["device"], row["engine"]) for row in cold],
+            [
+                ("polars", "nyc-green", "filtered", "GPU", "in-memory"),
+                ("polars", "nyc-green", "date-window", "GPU", "in-memory"),
+                ("polars", "nyc-green", "filtered", "GPU", "streaming"),
+                ("polars", "nyc-green", "date-window", "GPU", "streaming"),
+            ],
+        )
+        self.assertEqual(len(rows), 12)
+        self.assertTrue(all(row["memory_profile"]["enabled"] for row in rows))
+        self.assertEqual(len({row["suite_id"] for row in rows}), 1)
+        self.assertEqual(len({row["batch_id"] for row in rows}), 4)
+        self.assertEqual((self.work / "setup-groups").read_text().splitlines(), ["gpu_polars"])
+        self.assertEqual((self.work / "report-group").read_text().strip(), "gpu_polars")
+
+    def test_cpu_selection_keeps_both_polars_versions_and_date_window_engines(self):
+        self.install_protocol_fixture()
+        result = self.run_runner("--plain", "--dataset", "nyc-yellow", "--query", "date-window", "--device", "cpu")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rows = self.protocol_rows()
+        cold = [row for row in rows if row["phase"] == "cold"]
+        self.assertEqual(
+            [(row["library"], row["version"], row["engine"]) for row in cold],
+            [
+                ("polars", "cpu_polars", "in-memory"),
+                ("polars", "cpu_polars", "streaming"),
+                ("pyspark", "cpu_polars", "native"),
+                ("duckdb", "cpu_polars", "native"),
+                ("polars", "gpu_polars", "in-memory"),
+                ("polars", "gpu_polars", "streaming"),
+            ],
+        )
+        self.assertTrue(all(row["dataset"] == "nyc-yellow" and row["query"] == "date-window" for row in rows))
+        self.assertTrue(all(row["device"] == "CPU" and not row["memory_profile"]["enabled"] for row in rows))
+        self.assertEqual((self.work / "setup-groups").read_text().splitlines(), ["cpu_polars", "gpu_polars"])
+        self.assertEqual((self.work / "report-group").read_text().strip(), "gpu_polars")
+
+    def test_queries_without_ecommerce_workload_skip_it_and_keep_matrix_order(self):
+        self.install_protocol_fixture()
+        result = self.run_runner(
+            "--plain", "--dataset", "nyc-yellow", "ecommerce", "nyc-green", "--query", "complex", "--device", "gpu"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        cold = [row for row in self.protocol_rows() if row["phase"] == "cold"]
+        self.assertEqual(
+            [(row["dataset"], row["query"], row["engine"]) for row in cold],
+            [
+                ("nyc-green", "complex", "in-memory"),
+                ("nyc-green", "complex", "streaming"),
+                ("nyc-yellow", "complex", "in-memory"),
+                ("nyc-yellow", "complex", "streaming"),
+            ],
+        )
+
+    def test_empty_selection_fails_before_environment_setup_or_report(self):
+        for selection in (
+            ("--dataset", "ecommerce", "--device", "gpu"),
+            ("--dataset", "ecommerce", "--query", "filtered", "date-window"),
+        ):
+            with self.subTest(selection=selection):
+                result = self.run_runner("--plain", *selection)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertFalse((self.work / "setup-groups").exists())
+                self.assertFalse((self.work / "later-case-ran").exists())
+                self.assertFalse((self.work / "report-generated").exists())
+                self.assert_previous_results_preserved()
 
     def test_failed_gpu_sync_aborts_before_gpu_cases_and_report(self):
         self.write_executable(

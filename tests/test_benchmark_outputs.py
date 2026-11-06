@@ -3,6 +3,7 @@ import shutil
 import unittest
 
 import pyarrow as pa
+import pyarrow.csv as pc
 import pyarrow.parquet as pq
 from benchmark_fixtures import BenchmarkFixture
 
@@ -120,6 +121,40 @@ class BenchmarkOutputTests(BenchmarkFixture):
     @unittest.skipUnless(shutil.which("java"), "Spark requires Java")
     def test_filtered_nyc_spark_keeps_only_positive_trips_without_zone_joins(self):
         self.check_filtered_nyc("pyspark_evaluation.py", "pyspark.parquet", "nyc-yellow")
+
+    def check_explicit_ecommerce_formats(self, script, output, *args):
+        csv = self.write_ecommerce()
+        for file_type, source in (
+            ("parquet", self.root / "events-without-extension"),
+            ("csv", self.root / "csv-events.parquet"),
+        ):
+            with self.subTest(script=script, file_type=file_type):
+                if file_type == "parquet":
+                    table = pc.read_csv(
+                        csv,
+                        convert_options=pc.ConvertOptions(
+                            column_types={"event_time": pa.string(), "product_id": pa.int32(), "price": pa.float32()}
+                        ),
+                    )
+                    pq.write_table(table, source)
+                else:
+                    source.write_bytes(csv.read_bytes())
+                self.run_cli(script, "--file_path", source, "--file_type", file_type, *args)
+                rows = pq.read_table(self.root / "data/out" / output).to_pylist()
+                self.assertEqual(
+                    sorted((row["product_id"], row["sum_price"]) for row in rows), [(1, 700.0), (3, 600.0)]
+                )
+                records = [json.loads(line) for line in (self.root / "benchmarks.jsonl").read_text().splitlines()][-2:]
+                self.assertTrue(all(row["input_format"] == file_type for row in records))
+                self.assertTrue(all(row["validation"]["status"] == "passed" for row in records))
+
+    def test_polars_and_duckdb_validate_selected_format_independently_of_filename(self):
+        self.check_explicit_ecommerce_formats("polars_evaluation.py", "polars.parquet", "--mode", "lazy")
+        self.check_explicit_ecommerce_formats("duckdb_evaluation.py", "duckdb.parquet")
+
+    @unittest.skipUnless(shutil.which("java"), "Spark requires Java")
+    def test_spark_validates_selected_format_independently_of_filename(self):
+        self.check_explicit_ecommerce_formats("pyspark_evaluation.py", "pyspark_ecommerce")
 
 
 if __name__ == "__main__":

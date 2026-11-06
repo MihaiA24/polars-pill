@@ -59,7 +59,15 @@ def ecommerce_execution(
         logger.exception("DuckDB ecommerce benchmark failed")
         error = f"{type(e).__name__}: {e}"
     save_execution_time(
-        "DuckDB", duration, "CPU", "native", file_path, "simple", version=duckdb.__version__, error=error
+        "DuckDB",
+        duration,
+        "CPU",
+        "native",
+        file_path,
+        "simple",
+        version=duckdb.__version__,
+        error=error,
+        input_format="parquet" if file_type == "parquet" else "csv",
     )
     return error is None
 
@@ -67,20 +75,25 @@ def ecommerce_execution(
 def nyc_taxi_execution(
     connection: duckdb.DuckDBPyConnection,
     dataset_type: Literal["nyc-green", "nyc-yellow"],
-    execution_query: Literal["simple", "complex", "filtered"] = "simple",
+    execution_query: Literal["simple", "complex", "filtered", "date-window"] = "simple",
 ) -> bool:
     duration = error = None
     try:
         start_time = perf_counter()
         dataset = "yellow" if dataset_type == "nyc-yellow" else "green"
         parameters = [f"data/nyc-taxi/{dataset}.parquet"]
-        if execution_query == "filtered":
+        if execution_query in ("filtered", "date-window"):
             grouping_keys = ["PULocationID"]
             source = """
                 SELECT PULocationID, trip_distance, fare_amount, tip_amount
                 FROM read_parquet($1)
                 WHERE trip_distance > 0 AND fare_amount > 0
             """
+            if execution_query == "date-window":
+                source += """
+                    AND tpep_pickup_datetime >= TIMESTAMP '2019-10-01 00:00:00'
+                    AND tpep_pickup_datetime < TIMESTAMP '2019-10-02 00:00:00'
+                """
         else:
             grouping_keys = ["trip_distance"]
             if execution_query == "complex":
@@ -125,7 +138,15 @@ def nyc_taxi_execution(
         logger.exception("DuckDB %s %s benchmark failed", dataset_type, execution_query)
         error = f"{type(e).__name__}: {e}"
     save_execution_time(
-        "DuckDB", duration, "CPU", "native", dataset_type, execution_query, version=duckdb.__version__, error=error
+        "DuckDB",
+        duration,
+        "CPU",
+        "native",
+        dataset_type,
+        execution_query,
+        version=duckdb.__version__,
+        error=error,
+        input_format="parquet",
     )
     return error is None
 
@@ -137,7 +158,7 @@ def main() -> int:
     parser.add_argument("--dataset_type", choices=["ecommerce", "nyc-green", "nyc-yellow"], default="ecommerce")
     parser.add_argument(
         "--execution_query",
-        choices=["simple", "complex", "filtered"],
+        choices=["simple", "complex", "filtered", "date-window"],
         default="simple",
         help="NYC query variant; ecommerce always runs the simple median workload.",
     )
@@ -154,7 +175,7 @@ def main() -> int:
             execute = lambda: nyc_taxi_execution(connection, args.dataset_type, args.execution_query)
             dataset = "yellow" if args.dataset_type == "nyc-yellow" else "green"
             input_paths = (f"data/nyc-taxi/{dataset}.parquet",)
-            if args.execution_query != "filtered":
+            if args.execution_query not in ("filtered", "date-window"):
                 input_paths += ("data/nyc-taxi/taxi_zone_lookup.csv",)
 
         def duckdb_resources():
@@ -175,6 +196,7 @@ def main() -> int:
             input_paths=input_paths,
             output_path=OUTPUT_PATH,
             resources=duckdb_resources,
+            profile_memory=args.profile_memory,
         )
     return 0 if success else 1
 

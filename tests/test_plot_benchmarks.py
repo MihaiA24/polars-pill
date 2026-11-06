@@ -58,6 +58,7 @@ def comparable_record(**changes):
                 "threads": 4,
                 "hardware": {"host_id": "hashed-host", "cpu_model": "Test CPU", "memory_bytes": 1024, "gpus": None},
             },
+            "validation": {"status": "passed", "reference": "duckdb-sql-v1", "reason": None},
             **changes,
         }
     )
@@ -147,6 +148,23 @@ class Report(HTMLParser):
 
 
 class PlotBenchmarksTests(unittest.TestCase):
+    def test_malformed_memory_metadata_reports_its_source_line(self):
+        for profile in (
+            "not an object",
+            {"enabled": "yes"},
+            {"enabled": True, "errors": 1},
+            {"enabled": True, "errors": "not a list"},
+            {"enabled": True, "errors": [1]},
+            {"enabled": True, "peak_rss_bytes": -1},
+            {"enabled": True, "rss_samples": True},
+            {"enabled": True, "interval_seconds": 0},
+        ):
+            with self.subTest(profile=profile):
+                self.input.write_text("\n" + json.dumps(record(memory_profile=profile)) + "\n", encoding="utf-8")
+                with self.assertRaises(ValueError) as caught:
+                    load_records(self.input)
+                self.assertTrue(str(caught.exception).startswith(f"{self.input}:2:"))
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -256,6 +274,208 @@ class PlotBenchmarksTests(unittest.TestCase):
         self.assertIn("4×", report.tables[1][1][8])
         self.assertIn("20", report.sections[1]["chart_text"])
         self.assertEqual(report.tables[0][0][3:6], ["3/3", "4", "2–100"])
+
+    def test_wrong_or_unverified_results_keep_times_but_never_receive_speedups(self):
+        for validation, reason in (
+            (None, "unchecked"),
+            ({"status": "unchecked", "reason": "unsupported query"}, "unchecked"),
+            ({"status": "mismatch", "reference": "duckdb-sql-v1", "reason": "wrong keys"}, "mismatch"),
+            ({"status": "error", "reference": "duckdb-sql-v1", "reason": "reference failed"}, "error"),
+            ({"status": "passed"}, "reference"),
+            ({"status": "passed", "reference": "another-oracle"}, "reference"),
+        ):
+            with self.subTest(validation=validation):
+                report = self.report(
+                    [
+                        comparable_record(batch_id="baseline", duration_seconds=10),
+                        comparable_record(batch_id="fast", duration_seconds=0.01, validation=validation),
+                    ]
+                )
+                for candidate, baseline in (("result-1", "result-0"), ("result-0", "result-1")):
+                    comparison = report.data["comparisons"][candidate][baseline]
+                    self.assertIsNone(comparison["speedup"])
+                    self.assertIn(reason, comparison["reason"].lower())
+                self.assertEqual(report.tables[0][1][4], "0.01")
+                self.assertEqual(report.sections[0]["charts"], 1)
+
+        historical = comparable_record(suite_id=None, duration_seconds=0.01)
+        historical.pop("validation")
+        report = self.report([historical])
+        self.assertIn("unchecked", report.tables[0][0][10].lower())
+        self.assertIsNone(report.data["comparisons"]["result-0"]["result-0"]["speedup"])
+
+    def test_validation_aggregates_every_attempt_and_keeps_mixed_outcomes_visible(self):
+        report = self.report(
+            [
+                comparable_record(batch_id="baseline", duration_seconds=10),
+                *[
+                    comparable_record(
+                        batch_id="mixed",
+                        repetition=index,
+                        repetitions=4,
+                        duration_seconds=index / 100,
+                        validation=validation,
+                    )
+                    for index, validation in enumerate(
+                        (
+                            {"status": "passed", "reference": "duckdb-sql-v1"},
+                            None,
+                            {"status": "mismatch", "reference": "duckdb-sql-v1", "reason": "wrong keys"},
+                            {"status": "error", "reference": "duckdb-sql-v1", "reason": "oracle unavailable"},
+                        ),
+                        1,
+                    )
+                ],
+            ]
+        )
+        self.assertEqual(len(report.tables[0]), 2)
+        self.assertEqual(report.tables[0][1][3:6], ["4/4", "0.025", "0.01–0.04"])
+        validation = report.tables[0][1][10].lower()
+        for outcome in ("passed", "unchecked", "mismatch", "error", "wrong keys", "oracle unavailable"):
+            self.assertIn(outcome, validation)
+        comparison = report.data["comparisons"]["result-1"]["result-0"]
+        self.assertIsNone(comparison["speedup"])
+        details = json.loads(report.tables[0][1][9].split("Measurement details", 1)[1])
+        self.assertEqual([attempt["validation"] for attempt in details["attempts"]][1], None)
+        self.assertEqual(details["attempts"][2]["validation"]["status"], "mismatch")
+
+    def test_validation_reasons_are_safe_in_cells_and_embedded_comparisons(self):
+        payload = '</script><img src=x onerror="boom">&'
+        report = self.report(
+            [
+                comparable_record(),
+                comparable_record(
+                    batch_id="wrong", validation={"status": "mismatch", "reference": "duckdb-sql-v1", "reason": payload}
+                ),
+            ]
+        )
+        self.assertIn(payload, report.tables[0][1][10])
+        self.assertIn(payload, report.data["comparisons"]["result-1"]["result-0"]["reason"])
+        embedded = next(
+            script["text"] for script in report.scripts if script["attributes"].get("id") == "benchmark-data"
+        )
+        self.assertNotIn("<", embedded)
+        self.assertFalse(any(tag in ("img", "iframe") for tag, _ in report.tags))
+        self.assertEqual(len(report.scripts), 2)
+
+    def test_reference_identity_must_match_within_a_phase(self):
+        report = self.report(
+            [
+                comparable_record(batch_id="baseline"),
+                comparable_record(batch_id="mixed", repetitions=2),
+                comparable_record(
+                    batch_id="mixed",
+                    repetitions=2,
+                    repetition=2,
+                    validation={"status": "passed", "reference": "another-oracle"},
+                ),
+            ]
+        )
+        self.assertEqual(len(report.tables[0]), 2)
+        comparison = report.data["comparisons"]["result-1"]["result-0"]
+        self.assertIsNone(comparison["speedup"])
+        self.assertIn("reference", comparison["reason"].lower())
+
+    def test_memory_profiling_modes_must_match_even_when_probes_are_unavailable(self):
+        for baseline_profile, candidate_profile, comparable in (
+            (None, {"enabled": False}, True),
+            (None, {"enabled": True, "errors": ["probe unavailable"]}, False),
+            ({"enabled": True}, {"enabled": True, "errors": ["probe unavailable"]}, True),
+        ):
+            with self.subTest(baseline=baseline_profile, candidate=candidate_profile):
+                report = self.report(
+                    [
+                        comparable_record(duration_seconds=4, memory_profile=baseline_profile),
+                        comparable_record(batch_id="candidate", duration_seconds=2, memory_profile=candidate_profile),
+                    ]
+                )
+                comparison = report.data["comparisons"]["result-1"]["result-0"]
+                if comparable:
+                    self.assertEqual(comparison, {"speedup": 2, "reason": None})
+                else:
+                    self.assertIsNone(comparison["speedup"])
+                    self.assertIn("profiling", comparison["reason"].lower())
+
+    def test_sampled_peaks_use_phase_maxima_and_preserve_raw_metrics_safely(self):
+        payload = '</script><img src=x onerror="boom">'
+        profiles = [
+            {
+                "enabled": True,
+                "interval_seconds": 0.05,
+                "peak_rss_bytes": rss * 1024**2,
+                "peak_gpu_memory_bytes": gpu * 1024**2 if gpu is not None else None,
+                "rss_samples": 3,
+                "gpu_samples": 2 if gpu is not None else 0,
+                "errors": [payload] if gpu is None else [],
+            }
+            for rss, gpu in ((1, 8), (3, None), (2, 4))
+        ]
+        report = self.report(
+            [
+                comparable_record(
+                    repetition=index,
+                    repetitions=3,
+                    query="date-window",
+                    memory_profile=profile,
+                    selectivity={
+                        "input_rows": 8,
+                        "matched_rows": matched,
+                        "fraction": matched / 8,
+                        "window_start": "2019-10-01T00:00:00",
+                        "window_end": "2019-10-02T00:00:00",
+                    },
+                )
+                for index, (profile, matched) in enumerate(zip(profiles, (2, 3, 2)), 1)
+            ]
+        )
+        self.assertEqual(len(report.tables[0]), 1)
+        row = report.tables[0][0]
+        self.assertEqual(row[3], "3/3")
+        self.assertIn("3 passed", row[10])
+        for value in ("2 / 8 rows (25.0000%)", "3 / 8 rows (37.5000%)"):
+            self.assertIn(value, row[11])
+        self.assertIn("3 MiB (3,145,728 bytes)", row[12])
+        self.assertIn("8 MiB (8,388,608 bytes)", row[13])
+        self.assertIn("unavailable for 1/3 attempts", row[13])
+        self.assertIn(payload, row[13])
+        details = json.loads(row[9].split("Measurement details", 1)[1])
+        self.assertEqual(details["memory_profile"]["peak_rss_bytes"], 3145728)
+        self.assertEqual(details["memory_profile"]["peak_gpu_memory_bytes"], 8388608)
+        self.assertEqual([attempt["memory_profile"] for attempt in details["attempts"]], profiles)
+        self.assertEqual([attempt["selectivity"]["matched_rows"] for attempt in details["attempts"]], [2, 3, 2])
+        self.assertFalse(any(tag in ("img", "iframe") for tag, _ in report.tags))
+        self.assertEqual(len(report.scripts), 2)
+        self.assertEqual(report.data["comparisons"]["result-0"]["result-0"], {"speedup": 1, "reason": None})
+
+    def test_missing_metrics_and_empty_selectivity_are_not_zero_measurements(self):
+        report = self.report(
+            [
+                comparable_record(),
+                comparable_record(
+                    batch_id="unavailable",
+                    memory_profile={"enabled": True, "peak_rss_bytes": None, "peak_gpu_memory_bytes": None},
+                    selectivity={"input_rows": 0, "matched_rows": 0, "fraction": None},
+                ),
+            ]
+        )
+        self.assertEqual(report.tables[0][0][11], "Not recorded")
+        self.assertTrue(all("not profiled" in cell.lower() for cell in report.tables[0][0][12:14]))
+        self.assertIn("0 / 0 rows (fraction unavailable)", report.tables[0][1][11])
+        self.assertEqual(report.tables[0][1][12:14], ["Unavailable", "Unavailable"])
+
+    def test_mixed_profiling_modes_within_phase_are_not_comparable(self):
+        report = self.report(
+            [
+                comparable_record(repetitions=2, memory_profile={"enabled": False}),
+                comparable_record(repetitions=2, repetition=2, memory_profile={"enabled": True}),
+            ]
+        )
+        self.assertEqual(len(report.tables[0]), 1)
+        self.assertEqual(report.tables[0][0][3], "2/2")
+        comparison = report.data["comparisons"]["result-0"]["result-0"]
+        self.assertIsNone(comparison["speedup"])
+        self.assertIn("profiling mode", comparison["reason"])
+        self.assertIn("inconsistent", report.tables[0][0][12])
 
     def test_unavailable_comparisons_keep_measurements_and_concrete_reasons(self):
         hardware = comparable_record()["resources"]["hardware"]
@@ -378,7 +598,7 @@ class PlotBenchmarksTests(unittest.TestCase):
             ]
         )
         self.assertEqual([row[3] for row in report.tables[0]], ["1/2", "1/2"])
-        self.assertTrue(all("incomplete" in row[-1] for row in report.tables[0]))
+        self.assertTrue(all("incomplete" in row[9] for row in report.tables[0]))
         self.assertEqual(report.sections[0]["charts"], 0)
 
     def test_extreme_ratios_are_unavailable_not_nonfinite_json(self):
@@ -451,7 +671,7 @@ class PlotBenchmarksTests(unittest.TestCase):
         self.assertEqual([row[4:7:2] for row in report.tables[0]], [["1", "1000"], ["2", "—"], ["—", "—"]])
         self.assertEqual(report.tables[1][0][4], "100")
         self.assertEqual(report.tables[2][0][4], "50")
-        self.assertIn("out of memory", report.tables[0][2][-1])
+        self.assertIn("out of memory", report.tables[0][2][9])
         self.assertIn("GPU", report.tables[0][2][1])
         self.assertIn("25.8.0", report.tables[0][2][2])
 
@@ -485,12 +705,12 @@ class PlotBenchmarksTests(unittest.TestCase):
                 report = self.report(rows)
                 self.assertFalse(any(tag == "svg" for tag, _ in report.tags))
                 self.assertEqual(len(report.tables[0]), 1)
-                self.assertNotIn("Success", report.tables[0][0][-1])
+                self.assertNotIn("Success", report.tables[0][0][9])
 
     def test_failed_attempts_are_not_zero_time_successes(self):
         report = self.report([record(duration_seconds=None, error="crashed"), record(duration_seconds=0)])
         self.assertEqual([row[4] for row in report.tables[0]], ["—", "0"])
-        self.assertIn("crashed", report.tables[0][0][-1])
+        self.assertIn("crashed", report.tables[0][0][9])
         failures_only = self.report([record(duration_seconds=None, error="out of memory")])
         self.assertEqual(failures_only.tables[0][0][4], "—")
         self.assertFalse(any(tag == "svg" for tag, _ in failures_only.tags))
@@ -542,7 +762,7 @@ class PlotBenchmarksTests(unittest.TestCase):
         )
         report = self.report([malicious, record(duration_seconds=None, error=payload)])
         self.assertIn(payload, report.tables[0][0][0])
-        self.assertIn(payload, report.tables[-1][0][-1])
+        self.assertIn(payload, report.tables[-1][0][9])
         self.assertFalse(any(tag in ("img", "iframe") for tag, _ in report.tags))
         self.assertEqual(len(report.scripts), 2)
         self.assertFalse(any(key.lower().startswith("on") for _, attributes in report.tags for key in attributes))

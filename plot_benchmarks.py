@@ -59,6 +59,26 @@ def load_records(path):
                             valid = False
                         if not valid:
                             raise ValueError(f"{key} must be a finite nonnegative number or null")
+                profile = record.get("memory_profile")
+                if profile is not None:
+                    if not isinstance(profile, dict) or type(profile.get("enabled")) is not bool:
+                        raise ValueError("memory_profile requires a boolean enabled field")
+                    errors = profile.get("errors", [])
+                    if not isinstance(errors, list) or any(not isinstance(error, str) for error in errors):
+                        raise ValueError("memory_profile.errors must be a list of strings")
+                    for field in ("peak_rss_bytes", "peak_gpu_memory_bytes", "rss_samples", "gpu_samples"):
+                        value = profile.get(field)
+                        if value is not None and (type(value) is not int or value < 0):
+                            raise ValueError(f"memory_profile.{field} must be a nonnegative integer or null")
+                    for field in ("interval_seconds", "gpu_interval_seconds"):
+                        value = profile.get(field)
+                        if value is not None:
+                            try:
+                                valid = type(value) in (int, float) and math.isfinite(value) and value > 0
+                            except OverflowError:
+                                valid = False
+                            if not valid:
+                                raise ValueError(f"memory_profile.{field} must be finite and positive")
                 if record["error"] is None and record["duration_seconds"] is None:
                     raise ValueError("a successful record requires duration_seconds")
                 if record["error"] is not None and record["duration_seconds"] is not None:
@@ -241,10 +261,124 @@ def _comparison(candidate, baseline):
             inventories.append(sorted(inventory))
         if inventories[0] != inventories[1]:
             return unavailable("Different GPU inventories.")
+    for label, row in (("Candidate", candidate), ("Baseline", baseline)):
+        validation = row["validation"]
+        if validation["status"] != "passed":
+            return unavailable(
+                f"{label} validation {validation['status']}: {validation['reason'] or 'not all attempts passed'}."
+            )
+        if validation["reference"] is None:
+            return unavailable(f"{label} validation reference is missing or inconsistent across attempts.")
+    if candidate["validation"]["reference"] != baseline["validation"]["reference"]:
+        return unavailable("Different validation references.")
+    modes = [row["memory_profile"]["enabled"] for row in (candidate, baseline)]
+    if any(mode is None for mode in modes):
+        return unavailable("Unknown or inconsistent memory profiling mode across attempts.")
+    if modes[0] != modes[1]:
+        return unavailable("Different memory profiling modes (enabled versus disabled).")
     speedup = baseline[metric] / candidate[metric]
     if not math.isfinite(speedup) or speedup <= 0:
         return unavailable("The speedup ratio is not finite and strictly positive.")
     return {"speedup": speedup, "reason": None}
+
+
+def _validation_summary(attempts):
+    counts = dict.fromkeys(("passed", "mismatch", "error", "unchecked"), 0)
+    references = set()
+    reasons = []
+    for attempt in attempts:
+        validation = attempt.get("validation")
+        validation = validation if isinstance(validation, dict) else {}
+        status = validation.get("status")
+        if not isinstance(status, str) or status not in counts:
+            status = "unchecked"
+        counts[status] += 1
+        reference = validation.get("reference")
+        references.add(reference if isinstance(reference, str) and reference.strip() else None)
+        reason = validation.get("reason")
+        if isinstance(reason, str) and reason:
+            reasons.append(reason)
+        elif status == "unchecked":
+            reasons.append("Validation not recorded or unchecked")
+    status = next(value for value in ("error", "mismatch", "unchecked", "passed") if counts[value])
+    return {
+        "status": status,
+        "reference": next(iter(references)) if len(references) == 1 else None,
+        "reason": "; ".join(dict.fromkeys(reasons)) or None,
+        "counts": counts,
+    }
+
+
+def _profile_mode(attempt):
+    profile = attempt.get("memory_profile")
+    if profile is None:
+        return False
+    return profile.get("enabled") if isinstance(profile, dict) and type(profile.get("enabled")) is bool else None
+
+
+def _memory_summary(attempts):
+    modes = {_profile_mode(attempt) for attempt in attempts}
+    profiles = [attempt.get("memory_profile") for attempt in attempts]
+    profiles = [profile if isinstance(profile, dict) else {} for profile in profiles]
+    summary = {"enabled": next(iter(modes)) if len(modes) == 1 else None}
+    for field in ("peak_rss_bytes", "peak_gpu_memory_bytes"):
+        values = [
+            profile[field]
+            for profile in profiles
+            if profile.get("enabled") is True and type(profile.get(field)) is int and profile[field] >= 0
+        ]
+        summary[field] = max(values) if values else None
+    summary["errors"] = list(
+        dict.fromkeys(
+            error for profile in profiles for error in (profile.get("errors") or []) if isinstance(error, str)
+        )
+    )
+    return summary
+
+
+def _validation_text(validation):
+    counts = ", ".join(f"{count} {status}" for status, count in validation["counts"].items() if count)
+    reference = validation["reference"] or "reference unavailable / inconsistent"
+    return f"{counts}; {reference}" + (f"; {validation['reason']}" if validation["reason"] else "")
+
+
+def _selectivity_text(attempts):
+    values = []
+    for attempt in attempts:
+        selectivity = attempt.get("selectivity")
+        if not isinstance(selectivity, dict):
+            values.append("Not recorded")
+            continue
+        matched, total, fraction = (selectivity.get(field) for field in ("matched_rows", "input_rows", "fraction"))
+        if type(matched) is not int or type(total) is not int:
+            values.append("Unavailable")
+            continue
+        percent = (
+            f"{fraction:.4%}" if type(fraction) in (int, float) and math.isfinite(fraction) else "fraction unavailable"
+        )
+        values.append(f"{matched:,} / {total:,} rows ({percent})")
+    return "; ".join(dict.fromkeys(values))
+
+
+def _memory_text(row, field):
+    profile = row["memory_profile"]
+    if profile["enabled"] is False:
+        return "Disabled / not profiled"
+    if profile["enabled"] is None:
+        return "Unavailable: inconsistent / unknown profiling mode"
+    peak = profile[field]
+    text = f"{peak / 1024**2:.4g} MiB ({peak:,} bytes)" if peak is not None else "Unavailable"
+    missing = sum(
+        not isinstance(attempt.get("memory_profile"), dict)
+        or type(attempt["memory_profile"].get(field)) is not int
+        or attempt["memory_profile"][field] < 0
+        for attempt in row["_records"]
+    )
+    if peak is not None and missing:
+        text += f"; unavailable for {missing}/{len(row['_records'])} attempts"
+    if profile["errors"]:
+        text += "; " + "; ".join(profile["errors"])
+    return text
 
 
 def _summarize_runs(records):
@@ -304,6 +438,8 @@ def _summarize_runs(records):
             "_ranges": {},
             "_scope": _scope_id(first),
             "_attempt": len(summaries) + 1,
+            "validation": _validation_summary(attempts),
+            "memory_profile": _memory_summary(attempts),
         }
         for field in ("duration_seconds", "total_seconds"):
             values = [record[field] for record in successes if record[field] is not None]
@@ -444,9 +580,15 @@ Values above 1× are faster.</p>
 and legacy attempts remain separate. Warm rows show the median and min–max within one batch;
 raw attempts remain in JSONL. Cold charts use total time including recorded startup; warm and
 legacy charts use query time. Cold does not mean a flushed filesystem cache. Failed or
-incomplete groups have no bar. Speedup is baseline time divided by candidate time and requires
-matching, known measurement metadata; input snapshots describe paths, sizes and modification
-times, not content hashes.</p>
+incomplete execution groups have no bar. Unchecked or incorrect results retain their timings
+but never receive speedups. Every attempt on both sides must pass the same independent
+validation reference, with matching memory profiling modes and known measurement metadata.
+Input snapshots describe paths, sizes and modification times, not content hashes.</p>
+<p>Selectivity is observed qualifying rows / input rows, not row-group pruning. Sampled
+memory peaks are the maximum observed across attempts, not guaranteed instantaneous peaks.
+RSS sums live process-tree RSS (shared pages may be counted twice); GPU memory is PID-scoped.
+Unavailable probes are not zero usage. Raw validation, selectivity and profiling measurements
+remain in each row's details and the original JSONL.</p>
 </details>
 <noscript><p>JavaScript is disabled. Filters and baseline controls do not update;
 all result sections are shown below.</p></noscript>
@@ -478,6 +620,7 @@ all result sections are shown below.</p></noscript>
         baseline = next(
             (row for row in runs if row["error"] is None and row.get(metric) is not None and row[metric] > 0), runs[0]
         )
+        baseline = next((row for row in runs if _comparison(row, row)["speedup"] is not None), baseline)
         for candidate in runs:
             payload["comparisons"][candidate["_result_id"]] = {
                 row["_result_id"]: _comparison(candidate, row) for row in runs
@@ -512,7 +655,9 @@ all result sections are shown below.</p></noscript>
             '<th scope="col" class="number">Samples</th><th scope="col" class="number">Query median (s)</th>'
             '<th scope="col" class="number">Query min–max (s)</th><th scope="col" class="number">Total median (s)</th>'
             '<th scope="col">Batch / date</th><th scope="col">Speedup</th>'
-            '<th scope="col">Result / details</th></tr></thead><tbody>\n'
+            '<th scope="col">Execution / details</th><th scope="col">Validation</th>'
+            '<th scope="col">Actual selectivity</th><th scope="col">Sampled peak RSS</th>'
+            '<th scope="col">Sampled peak GPU memory</th></tr></thead><tbody>\n'
         )
         for row in runs:
             version = escape(row["version"] or "not recorded")
@@ -531,7 +676,17 @@ all result sections are shown below.</p></noscript>
             metadata["attempts"] = [
                 {
                     key: attempt.get(key)
-                    for key in ("recorded_at", "repetition", "duration_seconds", "total_seconds", "error")
+                    for key in (
+                        "recorded_at",
+                        "repetition",
+                        "duration_seconds",
+                        "total_seconds",
+                        "error",
+                        "input_format",
+                        "validation",
+                        "selectivity",
+                        "memory_profile",
+                    )
                 }
                 for attempt in row["_records"]
             ]
@@ -547,7 +702,11 @@ all result sections are shown below.</p></noscript>
                 f"<td>{identity}</td><td><span data-speedup>{speedup}</span>"
                 f"<small data-comparison-reason>{escape(comparison['reason'] or '')}</small></td>"
                 f"<td>{escape(result)}<details><summary>Measurement details</summary>"
-                f"<pre>{details}</pre></details></td></tr>\n"
+                f"<pre>{details}</pre></details></td>"
+                f"<td>{escape(_validation_text(row['validation']))}</td>"
+                f"<td>{escape(_selectivity_text(row['_records']))}</td>"
+                f"<td>{escape(_memory_text(row, 'peak_rss_bytes'))}</td>"
+                f"<td>{escape(_memory_text(row, 'peak_gpu_memory_bytes'))}</td></tr>\n"
             )
         parts.append("</tbody></table></div>\n")
         if any(row["error"] is None and row.get(metric) is not None for row in runs):

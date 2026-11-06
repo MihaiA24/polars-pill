@@ -12,8 +12,13 @@ from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
 
+from benchmark_profiling import MemoryProfiler
+from benchmark_validation import ResultValidator
+
 # Imported before dataframe libraries so every CLI uses the same startup boundary.
 PROCESS_STARTED = perf_counter()
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,6 +55,9 @@ def add_benchmark_arguments(parser):
     """Add same-process measurement counts; the shell forwards environment overrides."""
     parser.add_argument("--warmups", type=_count_argument(0), default=1)
     parser.add_argument("--repetitions", type=_count_argument(1), default=5)
+    parser.add_argument(
+        "--profile-memory", action="store_true", default=os.environ.get("BENCHMARK_PROFILE_MEMORY") == "1"
+    )
 
 
 def _error(exception):
@@ -260,7 +268,15 @@ def _append_record(record):
 
 
 def run_benchmark(
-    execute, *, warmups=1, repetitions=5, process_started=None, input_paths=(), output_path=None, resources=None
+    execute,
+    *,
+    warmups=1,
+    repetitions=5,
+    process_started=None,
+    input_paths=(),
+    output_path=None,
+    resources=None,
+    profile_memory=None,
 ):
     """Measure one cold attempt and repeated warm attempts without timing provenance probes."""
     entered = perf_counter()
@@ -268,6 +284,9 @@ def run_benchmark(
     for name, value, minimum in (("warmups", warmups, 0), ("repetitions", repetitions, 1)):
         if type(value) is not int or value < minimum:
             raise ValueError(f"{name} must be an integer >= {minimum}")
+    if profile_memory is None:
+        profile_memory = os.environ.get("BENCHMARK_PROFILE_MEMORY") == "1"
+    input_paths = tuple(input_paths)
     resource_metadata = _resource_metadata()
     try:
         resource_metadata.update((resources() if callable(resources) else resources) or {})
@@ -283,47 +302,84 @@ def run_benchmark(
         "batch_id": os.environ.get("BENCHMARK_BATCH_ID") or uuid4().hex,
         "warmups": warmups,
         "repetitions": repetitions,
-        "cache_policy": "uncontrolled; no cache flushing; same-process repetitions",
+        "cache_policy": (
+            "uncontrolled; no cache flushing; same-process repetitions; independent validation after measured attempts "
+            "may populate OS input/output caches between attempts; disk reference cache reused within batch"
+        ),
         "input_snapshot": _input_snapshot(input_paths),
         "resources": resource_metadata,
         **_source_metadata(),
     }
     phases = [("cold", 1)] + [("warmup", index + 1) for index in range(warmups)]
     phases += [("warm", index + 1) for index in range(repetitions)]
-    for phase, repetition in phases:
-        attempt = {"records": [], "started": perf_counter(), "startup": startup if phase == "cold" else 0.0}
-        token = _attempt.set(attempt)
-        try:
-            succeeded = bool(execute())
-        finally:
-            _attempt.reset(token)
-        succeeded = succeeded and all(record["error"] is None for record in attempt["records"])
-        if phase != "warmup" or not succeeded:
-            output = None if output_path is None else _output_metadata(output_path, succeeded)
-            for record in attempt["records"]:
-                if not succeeded:
+    validator = None
+    try:
+        for phase, repetition in phases:
+            profiler = MemoryProfiler(enabled=profile_memory)
+            try:
+                profiler.start()
+                attempt = {"records": [], "started": perf_counter(), "startup": startup if phase == "cold" else 0.0}
+                token = _attempt.set(attempt)
+                try:
+                    succeeded = bool(execute())
+                finally:
+                    _attempt.reset(token)
+            finally:
+                memory_profile = profiler.stop()
+            succeeded = succeeded and all(record["error"] is None for record in attempt["records"])
+            validation_succeeded = True
+            if phase != "warmup" or not succeeded:
+                output = None if output_path is None else _output_metadata(output_path, succeeded)
+                for record in attempt["records"]:
+                    if not succeeded:
+                        record.update(
+                            duration_seconds=None,
+                            total_seconds=None,
+                            error=record["error"] or "Benchmark execution returned false",
+                        )
+                        validation = {
+                            "validation": {
+                                "status": "unchecked",
+                                "reference": "duckdb-sql-v1",
+                                "reason": "Benchmark execution failed",
+                            }
+                        }
+                    else:
+                        try:
+                            if validator is None:
+                                validator = ResultValidator(input_paths)
+                            validation = validator.validate(record, output_path)
+                        except (OSError, ValueError, TypeError, KeyError, RuntimeError) as exception:
+                            validation = {
+                                "validation": {
+                                    "status": "error",
+                                    "reference": "duckdb-sql-v1",
+                                    "reason": _error(exception),
+                                }
+                            }
+                        validation_succeeded &= validation["validation"]["status"] not in ("mismatch", "error")
                     record.update(
-                        duration_seconds=None,
-                        total_seconds=None,
-                        error=record["error"] or "Benchmark execution returned false",
+                        metadata,
+                        **validation,
+                        phase=phase,
+                        repetition=repetition,
+                        startup_seconds=attempt["startup"],
+                        output=output,
+                        memory_profile=memory_profile,
+                        timer_scope={
+                            "duration_seconds": "read-compute-write",
+                            "total_seconds": (
+                                "startup-and-attempt" if phase == "cold" and process_started is not None else "attempt"
+                            ),
+                        },
                     )
-                record.update(
-                    metadata,
-                    phase=phase,
-                    repetition=repetition,
-                    startup_seconds=attempt["startup"],
-                    output=output,
-                    timer_scope={
-                        "duration_seconds": "read-compute-write",
-                        "total_seconds": (
-                            "startup-and-attempt" if phase == "cold" and process_started is not None else "attempt"
-                        ),
-                    },
-                )
-                _append_record(record)
-        if not succeeded:
-            return False
-    return True
+                    _append_record(record)
+            if not succeeded or not validation_succeeded:
+                return False
+        return True
+    finally:
+        if validator is not None:
+            validator.close()
 
 
 def save_execution_time(
@@ -338,6 +394,7 @@ def save_execution_time(
     total_duration=None,
     error=None,
     backend_version=None,
+    input_format=None,
 ):
     """Append one measured execution; failed runs have no numeric duration."""
     attempt = _attempt.get()
@@ -357,6 +414,7 @@ def save_execution_time(
         "dataset": dataset,
         "query": execution_query.lower(),
         "error": error,
+        "input_format": input_format,
     }
     if attempt is None:
         _append_record(record)

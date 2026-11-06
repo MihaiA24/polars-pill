@@ -277,6 +277,119 @@ class BenchmarkRepetitionTests(unittest.TestCase):
             self.assertIn("session_resources", row["resources"]["metadata_errors"])
         self.assertTrue(Path("benchmarks.jsonl").read_bytes().startswith(prefix))
 
+    def test_validation_and_profiling_are_outside_timers_and_skip_successful_warmups(self):
+        active = False
+        calls = {"execute": 0, "validate": 0, "close": 0, "stop": 0}
+        clock = self.clock
+        test = self
+
+        class Profiler:
+            def __init__(self, enabled):
+                test.assertTrue(enabled)
+                clock.advance(50)
+
+            def start(self):
+                nonlocal active
+                active = True
+                clock.advance(50)
+
+            def stop(self):
+                nonlocal active
+                active = False
+                calls["stop"] += 1
+                clock.advance(50)
+                return {"enabled": True, "peak_rss_bytes": 123}
+
+        class Validator:
+            def __init__(self, paths):
+                test.assertFalse(active)
+                clock.advance(100)
+
+            def validate(self, record, output_path):
+                test.assertFalse(active)
+                calls["validate"] += 1
+                clock.advance(100)
+                return {
+                    "validation": {"status": "passed", "reference": "fixture-reference"},
+                    "selectivity": {"input_rows": 4, "matched_rows": 1, "fraction": 0.25},
+                }
+
+            def close(self):
+                calls["close"] += 1
+
+        def execute():
+            self.assertTrue(active)
+            calls["execute"] += 1
+            clock.advance(3)
+            self.record()
+            clock.advance(7)
+            return True
+
+        with patch.object(utils, "MemoryProfiler", Profiler), patch.object(utils, "ResultValidator", Validator):
+            self.assertTrue(utils.run_benchmark(execute, process_started=75, profile_memory=True))
+        self.assertEqual(calls, {"execute": 7, "validate": 6, "close": 1, "stop": 7})
+        rows = self.records()
+        self.assertEqual([row["total_seconds"] for row in rows], [28] + [3] * 5)
+        self.assertEqual([row["duration_seconds"] for row in rows], [2] * 6)
+        self.assertTrue(all(row["validation"]["status"] == "passed" for row in rows))
+        self.assertTrue(all(row["memory_profile"]["peak_rss_bytes"] == 123 for row in rows))
+        self.assertTrue(all(row["selectivity"]["fraction"] == 0.25 for row in rows))
+
+    def test_validation_failure_aborts_without_erasing_real_measurements_or_execution_success(self):
+        for status in ("mismatch", "error", "raises"):
+            with self.subTest(status=status):
+                Path("benchmarks.jsonl").unlink(missing_ok=True)
+                calls = []
+
+                def execute(calls=calls):
+                    calls.append("execute")
+                    self.clock.advance(3)
+                    self.record()
+                    return True
+
+                with patch.object(utils, "ResultValidator") as validator_type:
+                    validator = validator_type.return_value
+                    if status == "raises":
+                        validator.validate.side_effect = OSError("reference unavailable")
+                    else:
+                        validator.validate.return_value = {
+                            "validation": {"status": status, "reference": "fixture", "reason": "wrong result"}
+                        }
+                    self.assertFalse(utils.run_benchmark(execute, process_started=self.clock.now - 25))
+                    validator.close.assert_called_once()
+                self.assertEqual(calls, ["execute"])
+                (row,) = self.records()
+                self.assertEqual((row["duration_seconds"], row["total_seconds"]), (2, 28))
+                self.assertIsNone(row["error"])
+                self.assertEqual(row["validation"]["status"], "error" if status == "raises" else status)
+                self.assertFalse(row["memory_profile"]["enabled"])
+                self.assertIsNone(row["memory_profile"]["peak_rss_bytes"])
+
+    def test_execute_exception_closes_sampler_and_existing_validator_and_resets_context(self):
+        calls = []
+
+        def execute():
+            calls.append("execute")
+            if len(calls) == 2:
+                raise ValueError("warmup failed unexpectedly")
+            self.record()
+            return True
+
+        with (
+            patch.object(utils, "ResultValidator") as validator_type,
+            patch.object(utils, "MemoryProfiler") as profiler_type,
+        ):
+            validator_type.return_value.validate.return_value = {
+                "validation": {"status": "passed", "reference": "fixture"}
+            }
+            profiler_type.return_value.stop.return_value = {"enabled": False}
+            with self.assertRaisesRegex(ValueError, "warmup failed unexpectedly"):
+                utils.run_benchmark(execute)
+            self.assertEqual(profiler_type.return_value.stop.call_count, 2)
+            validator_type.return_value.close.assert_called_once()
+        self.record()
+        self.assertNotIn("phase", self.records()[-1])
+
     def test_parser_and_programmatic_count_validation(self):
         parser = argparse.ArgumentParser()
         utils.add_benchmark_arguments(parser)

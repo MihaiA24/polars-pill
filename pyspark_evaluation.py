@@ -9,7 +9,7 @@ from utils import PROCESS_STARTED, add_benchmark_arguments, run_benchmark, save_
 # isort: split
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import avg, col, count, median, sum
+from pyspark.sql.functions import avg, col, count, lit, median, sum
 from pyspark.sql.types import TimestampType
 
 from schemas import spark_schema
@@ -48,13 +48,23 @@ def ecommerce_execution(file_type: Literal["csv", "parquet"], file_path: str) ->
     except Exception as e:
         logger.exception("Spark ecommerce benchmark failed")
         error = f"{type(e).__name__}: {e}"
-    save_execution_time("PySpark", duration, "CPU", "lazy", file_path, "simple", version=spark_version, error=error)
+    save_execution_time(
+        "PySpark",
+        duration,
+        "CPU",
+        "lazy",
+        file_path,
+        "simple",
+        version=spark_version,
+        error=error,
+        input_format="parquet" if file_type == "parquet" else "csv",
+    )
     return error is None
 
 
 def nyc_taxi_execution(
     dataset_type: Literal["nyc-green", "nyc-yellow"],
-    execution_query: Literal["simple", "complex", "filtered"] = "simple",
+    execution_query: Literal["simple", "complex", "filtered", "date-window"] = "simple",
 ) -> bool:
     duration = error = None
     try:
@@ -62,8 +72,13 @@ def nyc_taxi_execution(
         dataset = "yellow" if dataset_type == "nyc-yellow" else "green"
 
         df = spark.read.parquet(f"data/nyc-taxi/{dataset}.parquet")
-        if execution_query == "filtered":
+        if execution_query in ("filtered", "date-window"):
             df = df.filter((col("trip_distance") > 0) & (col("fare_amount") > 0))
+            if execution_query == "date-window":
+                df = df.filter(
+                    (col("tpep_pickup_datetime") >= lit("2019-10-01 00:00:00").cast("timestamp_ntz"))
+                    & (col("tpep_pickup_datetime") < lit("2019-10-02 00:00:00").cast("timestamp_ntz"))
+                )
             keys = ["PULocationID"]
         else:
             df_zones = spark.read.csv("data/nyc-taxi/taxi_zone_lookup.csv", header=True, inferSchema=True)
@@ -98,7 +113,15 @@ def nyc_taxi_execution(
         logger.exception("Spark NYC benchmark failed")
         error = f"{type(e).__name__}: {e}"
     save_execution_time(
-        "PySpark", duration, "CPU", "lazy", dataset_type, execution_query, version=spark_version, error=error
+        "PySpark",
+        duration,
+        "CPU",
+        "lazy",
+        dataset_type,
+        execution_query,
+        version=spark_version,
+        error=error,
+        input_format="parquet",
     )
     return error is None
 
@@ -109,7 +132,9 @@ if __name__ == "__main__":
         parser.add_argument("--file_path", type=str)
         parser.add_argument("--file_type", type=str, default="csv")
         parser.add_argument("--dataset_type", type=str, default="ecommerce")
-        parser.add_argument("--execution_query", choices=["simple", "complex", "filtered"], default="simple")
+        parser.add_argument(
+            "--execution_query", choices=["simple", "complex", "filtered", "date-window"], default="simple"
+        )
         add_benchmark_arguments(parser)
         args = parser.parse_args()
 
@@ -123,7 +148,7 @@ if __name__ == "__main__":
             execute = lambda: nyc_taxi_execution(args.dataset_type, args.execution_query)
             dataset = "yellow" if args.dataset_type == "nyc-yellow" else "green"
             input_paths = (f"data/nyc-taxi/{dataset}.parquet",)
-            if args.execution_query != "filtered":
+            if args.execution_query not in ("filtered", "date-window"):
                 input_paths += ("data/nyc-taxi/taxi_zone_lookup.csv",)
             output_path = "data/out/pyspark.parquet"
 
@@ -145,5 +170,6 @@ if __name__ == "__main__":
             input_paths=input_paths,
             output_path=output_path,
             resources=spark_resources,
+            profile_memory=args.profile_memory,
         )
     sys.exit(0 if success else 1)
