@@ -1,4 +1,6 @@
 import argparse
+import csv
+import hashlib
 import json
 import logging
 import os
@@ -99,6 +101,61 @@ def _input_snapshot(paths):
     return snapshots
 
 
+def _hardware_metadata(errors):
+    hardware = {"host_id": None, "cpu_model": None, "memory_bytes": None, "gpus": None}
+    if platform.system() == "Linux":
+        try:
+            machine_id = Path("/etc/machine-id").read_text().strip()
+            if not machine_id:
+                raise ValueError("Empty machine identity")
+            hardware["host_id"] = hashlib.sha256(machine_id.encode()).hexdigest()
+        except (OSError, UnicodeError, ValueError) as exception:
+            errors["hardware_host_id"] = _error(exception)
+        try:
+            fields = dict(line.split(":", 1) for line in Path("/proc/cpuinfo").read_text().splitlines() if ":" in line)
+            fields = {key.strip(): value.strip() for key, value in fields.items()}
+            hardware["cpu_model"] = fields.get("model name") or fields.get("Hardware") or None
+            if hardware["cpu_model"] is None:
+                raise ValueError("CPU model unavailable")
+        except (OSError, UnicodeError, ValueError) as exception:
+            errors["hardware_cpu_model"] = _error(exception)
+    try:
+        memory = os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE")
+        if memory <= 0:
+            raise ValueError("Physical memory size unavailable")
+        hardware["memory_bytes"] = memory
+    except (AttributeError, OSError, ValueError) as exception:
+        errors["hardware_memory_bytes"] = _error(exception)
+    try:
+        inventory = subprocess.run(
+            ["nvidia-smi", "--query-gpu=uuid,name,memory.total,driver_version", "--format=csv,noheader,nounits"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        gpus = []
+        for row in csv.reader(inventory.stdout.splitlines(), skipinitialspace=True):
+            gpu_uuid, name, memory, driver = (value.strip() for value in row)
+            if (
+                any(value in ("", "N/A", "[N/A]", "[Not Supported]") for value in (gpu_uuid, name, driver))
+                or float(memory) <= 0
+            ):
+                raise ValueError("Incomplete GPU inventory")
+            gpus.append(
+                {
+                    "uuid": gpu_uuid,
+                    "name": name,
+                    "memory_bytes": int(float(memory) * 1024 * 1024),
+                    "driver_version": driver,
+                }
+            )
+        hardware["gpus"] = sorted(gpus, key=lambda gpu: gpu["uuid"])
+    except (OSError, subprocess.SubprocessError, UnicodeError, ValueError, OverflowError, csv.Error) as exception:
+        errors["hardware_gpus"] = _error(exception)
+    return hardware
+
+
 def _resource_metadata():
     metadata = {
         "cpu_count": os.cpu_count(),
@@ -111,6 +168,7 @@ def _resource_metadata():
         "os_limits": {},
     }
     errors = {}
+    metadata["hardware"] = _hardware_metadata(errors)
     if hasattr(os, "sched_getaffinity"):
         try:
             metadata["cpu_affinity_count"] = len(os.sched_getaffinity(0))
@@ -217,6 +275,11 @@ def run_benchmark(
         logger.debug("Session resource metadata unavailable", exc_info=True)
         resource_metadata.setdefault("metadata_errors", {})["session_resources"] = _error(exception)
     metadata = {
+        "suite_id": os.environ.get("BENCHMARK_SUITE_ID") or uuid4().hex,
+        "suite_started_at": (
+            os.environ.get("BENCHMARK_SUITE_STARTED_AT") if os.environ.get("BENCHMARK_SUITE_ID") else None
+        )
+        or datetime.now(UTC).isoformat(),
         "batch_id": os.environ.get("BENCHMARK_BATCH_ID") or uuid4().hex,
         "warmups": warmups,
         "repetitions": repetitions,
@@ -245,7 +308,17 @@ def run_benchmark(
                         error=record["error"] or "Benchmark execution returned false",
                     )
                 record.update(
-                    metadata, phase=phase, repetition=repetition, startup_seconds=attempt["startup"], output=output
+                    metadata,
+                    phase=phase,
+                    repetition=repetition,
+                    startup_seconds=attempt["startup"],
+                    output=output,
+                    timer_scope={
+                        "duration_seconds": "read-compute-write",
+                        "total_seconds": (
+                            "startup-and-attempt" if phase == "cold" and process_started is not None else "attempt"
+                        ),
+                    },
                 )
                 _append_record(record)
         if not succeeded:

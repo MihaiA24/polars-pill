@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -37,7 +38,14 @@ class BenchmarkRepetitionTests(unittest.TestCase):
         self.stack.enter_context(contextlib.chdir(self.root))
         self.clock = Clock()
         self.stack.enter_context(patch.object(utils, "perf_counter", self.clock))
-        self.stack.enter_context(patch.dict(os.environ, BENCHMARK_BATCH_ID="fixture-batch"))
+        self.stack.enter_context(
+            patch.dict(
+                os.environ,
+                BENCHMARK_BATCH_ID="fixture-batch",
+                BENCHMARK_SUITE_ID="fixture-suite",
+                BENCHMARK_SUITE_STARTED_AT="2026-01-01T00:00:00+00:00",
+            )
+        )
         self.source_probe = self.stack.enter_context(
             patch.object(
                 utils, "_source_metadata", return_value={"benchmark_revision": "abc123", "benchmark_dirty": False}
@@ -65,6 +73,12 @@ class BenchmarkRepetitionTests(unittest.TestCase):
             self.clock.advance(100)
             return {"benchmark_revision": "abc123", "benchmark_dirty": False}
 
+        def hardware_resources():
+            self.clock.advance(300)
+            return {
+                "hardware": {"host_id": "fixture-host", "cpu_model": "fixture-cpu", "memory_bytes": 1024, "gpus": []}
+            }
+
         def resources():
             self.clock.advance(400)
             return {"spark_master": "local[1]"}
@@ -85,6 +99,7 @@ class BenchmarkRepetitionTests(unittest.TestCase):
             return True
 
         self.source_probe.side_effect = source
+        self.resource_probe.side_effect = hardware_resources
         with (
             patch.object(utils, "_output_metadata", side_effect=output),
             patch.object(utils.json, "dumps", side_effect=dumps),
@@ -108,6 +123,16 @@ class BenchmarkRepetitionTests(unittest.TestCase):
         self.assertEqual([row["duration_seconds"] for row in rows], [2.0] * 6)
         for row in rows:
             self.assertEqual(row["batch_id"], "fixture-batch")
+            self.assertEqual(row["suite_id"], "fixture-suite")
+            self.assertEqual(row["suite_started_at"], "2026-01-01T00:00:00+00:00")
+            self.assertEqual(row["resources"]["hardware"]["host_id"], "fixture-host")
+            self.assertEqual(
+                row["timer_scope"],
+                {
+                    "duration_seconds": "read-compute-write",
+                    "total_seconds": "startup-and-attempt" if row["phase"] == "cold" else "attempt",
+                },
+            )
             self.assertEqual((row["warmups"], row["repetitions"]), (1, 5))
             self.assertEqual(
                 row["input_snapshot"], [{"path": "fixture.csv", "size_bytes": 5, "mtime_ns": stat.st_mtime_ns}]
@@ -168,13 +193,45 @@ class BenchmarkRepetitionTests(unittest.TestCase):
         self.assertEqual(direct["total_seconds"], 999)
         self.assertNotIn("phase", direct)
         self.assertNotIn("batch_id", direct)
+        self.assertNotIn("suite_id", direct)
+        self.assertNotIn("suite_started_at", direct)
+        self.assertNotIn("timer_scope", direct)
         self.record(error="ValueError: direct failure")
         self.assertIsNone(self.records()[-1]["total_seconds"])
         self.assertIsNone(self.records()[-1]["duration_seconds"])
         self.assertTrue(utils.run_benchmark(execute, warmups=0, repetitions=1))
         rows = self.records()
         self.assertEqual([row["total_seconds"] for row in rows[-2:]], [3.0, 3.0])
+        self.assertEqual(
+            [row["timer_scope"] for row in rows[-2:]],
+            [{"duration_seconds": "read-compute-write", "total_seconds": "attempt"}] * 2,
+        )
         self.assertTrue(Path("benchmarks.jsonl").read_bytes().startswith(prefix))
+
+    def test_standalone_invocations_get_distinct_suites_and_configuration_batches(self):
+        def execute():
+            self.clock.advance(3)
+            self.record()
+            return True
+
+        with patch.dict(os.environ):
+            for name in ("BENCHMARK_SUITE_ID", "BENCHMARK_SUITE_STARTED_AT", "BENCHMARK_BATCH_ID"):
+                os.environ.pop(name, None)
+            for _ in range(2):
+                self.assertTrue(utils.run_benchmark(execute, warmups=0, repetitions=2))
+            self.assertNotIn("BENCHMARK_SUITE_ID", os.environ)
+            self.assertNotIn("BENCHMARK_SUITE_STARTED_AT", os.environ)
+            self.assertNotIn("BENCHMARK_BATCH_ID", os.environ)
+        first, second = self.records()[:3], self.records()[3:]
+        for invocation in (first, second):
+            self.assertEqual(len({row["suite_id"] for row in invocation}), 1)
+            self.assertEqual(len({row["suite_started_at"] for row in invocation}), 1)
+            self.assertEqual(len({row["batch_id"] for row in invocation}), 1)
+            self.assertTrue(invocation[0]["suite_id"])
+            self.assertTrue(invocation[0]["batch_id"])
+            self.assertIsNotNone(datetime.fromisoformat(invocation[0]["suite_started_at"]).utcoffset())
+        self.assertNotEqual(first[0]["suite_id"], second[0]["suite_id"])
+        self.assertNotEqual(first[0]["batch_id"], second[0]["batch_id"])
 
     def test_context_resets_when_execute_raises(self):
         def execute():
@@ -304,12 +361,79 @@ class BenchmarkProvenanceTests(unittest.TestCase):
                 (root / "new_source.py").write_text("new code\n")
                 self.assertTrue(utils._source_metadata()["benchmark_dirty"])
 
+    def test_failed_native_probes_do_not_fail_attempts_or_enter_timers(self):
+        clock = Clock()
+
+        def unavailable(*args, **kwargs):
+            clock.advance(100)
+            raise OSError("native metadata unavailable")
+
+        def execute():
+            clock.advance(3)
+            utils.save_execution_time("Fixture", 2, "CPU", "test", "fixture.csv", "simple", version="1")
+            return True
+
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                contextlib.chdir(directory),
+                patch.object(utils, "perf_counter", clock),
+                patch.object(utils, "_source_metadata", return_value={}),
+                patch.object(utils.platform, "system", return_value="Linux"),
+                patch.object(Path, "read_text", side_effect=unavailable),
+                patch.object(utils.os, "sysconf", side_effect=unavailable),
+                patch.object(utils.subprocess, "run", side_effect=unavailable),
+            ):
+                self.assertTrue(utils.run_benchmark(execute, warmups=0, repetitions=1, process_started=90))
+            rows = [json.loads(line) for line in (Path(directory) / "benchmarks.jsonl").read_text().splitlines()]
+        self.assertEqual([row["total_seconds"] for row in rows], [13, 3])
+        for row in rows:
+            self.assertEqual(row["duration_seconds"], 2)
+            self.assertIsNone(row["error"])
+            self.assertEqual(
+                row["resources"]["hardware"], {"host_id": None, "cpu_model": None, "memory_bytes": None, "gpus": None}
+            )
+            self.assertIn("hardware_gpus", row["resources"]["metadata_errors"])
+
+    def test_native_hardware_identity_is_stable_hashed_and_inventory_is_observed(self):
+        files = {
+            "/etc/machine-id": "private-fixture-machine-id\n",
+            "/proc/cpuinfo": "processor: 0\nmodel name: Fixture CPU\n",
+        }
+        inventory = "GPU-b, Fixture B, 2048, 555.1\nGPU-a, Fixture A, 1024, 555.1\n"
+        with (
+            patch.object(utils.platform, "system", return_value="Linux"),
+            patch.object(Path, "read_text", autospec=True, side_effect=lambda path: files[str(path)]),
+            patch.object(
+                utils.os, "sysconf", side_effect=lambda name: {"SC_PHYS_PAGES": 16, "SC_PAGE_SIZE": 4096}[name]
+            ),
+            patch.object(utils.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, inventory)),
+        ):
+            first = utils._resource_metadata()
+            second = utils._resource_metadata()
+        hardware = first["hardware"]
+        self.assertEqual(hardware, second["hardware"])
+        self.assertRegex(hardware["host_id"], r"^[0-9a-f]{64}$")
+        self.assertNotIn("private-fixture-machine-id", json.dumps(first))
+        self.assertEqual(hardware["cpu_model"], "Fixture CPU")
+        self.assertEqual(hardware["memory_bytes"], 65536)
+        self.assertEqual(
+            hardware["gpus"],
+            [
+                {"uuid": "GPU-a", "name": "Fixture A", "memory_bytes": 1073741824, "driver_version": "555.1"},
+                {"uuid": "GPU-b", "name": "Fixture B", "memory_bytes": 2147483648, "driver_version": "555.1"},
+            ],
+        )
+
     def test_resource_metadata_keeps_observed_limits_and_unknown_affinity(self):
         environment = {"OMP_NUM_THREADS": "2", "POLARS_MAX_THREADS": "3"}
         with (
             patch.dict(os.environ, environment, clear=True),
             patch.object(utils.os, "cpu_count", return_value=None),
             patch.object(utils.os, "sched_getaffinity", side_effect=OSError("not available"), create=True),
+            patch.object(utils.platform, "system", return_value="Linux"),
+            patch.object(Path, "read_text", side_effect=OSError("native identity unavailable")),
+            patch.object(utils.os, "sysconf", side_effect=ValueError("memory unavailable")),
+            patch.object(utils.subprocess, "run", side_effect=subprocess.TimeoutExpired("nvidia-smi", 2)),
         ):
             metadata = utils._resource_metadata()
         self.assertIsNone(metadata["cpu_count"])
@@ -317,6 +441,11 @@ class BenchmarkProvenanceTests(unittest.TestCase):
         self.assertEqual(metadata["thread_environment"], environment)
         self.assertIn("cpu_affinity_count", metadata["metadata_errors"])
         self.assertIn("os_limits", metadata)
+        self.assertEqual(metadata["hardware"], {"host_id": None, "cpu_model": None, "memory_bytes": None, "gpus": None})
+        self.assertTrue(
+            {"hardware_host_id", "hardware_cpu_model", "hardware_memory_bytes", "hardware_gpus"}
+            <= metadata["metadata_errors"].keys()
+        )
 
 
 class BenchmarkRunnerRepetitionTests(unittest.TestCase):

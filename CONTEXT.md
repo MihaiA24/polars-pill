@@ -32,13 +32,27 @@ phase. It yields timings or a failure.
 
 ## Batch
 
-Measurements collected together under one benchmark execution protocol. Repetitions from
-different batches are not pooled into a single performance estimate.
+Repeated measurements of one workload and execution configuration in one process.
+Results from different batches are not pooled into a single performance estimate.
+
+## Suite
+
+Configuration batches collected during one benchmark invocation. A suite can be partial
+if execution stops before the matrix finishes.
 
 ## Phase
 
 Cold is the first query in a fresh process; warm follows warm-ups in that reused process.
 Neither implies a flushed filesystem cache.
+
+## Baseline
+
+A successful result chosen as the reference for a comparison.
+
+## Speedup
+
+The baseline latency divided by the candidate latency for matching workloads and
+measurement conditions. Values above one mean the candidate is faster.
 
 ## Runtime version
 

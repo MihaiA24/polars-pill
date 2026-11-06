@@ -15,6 +15,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from uuid import uuid4
 
 
 @dataclass(frozen=True)
@@ -109,11 +110,11 @@ def elapsed(seconds):
 
 
 class Dashboard:
-    def __init__(self, live, total, batch):
+    def __init__(self, live, total, suite):
         self.live = live
         self.colors = live and not os.environ.get("NO_COLOR")
         self.total = total
-        self.batch = batch
+        self.suite = suite
         self.started = time.monotonic()
         self.active_started = self.started
         self.active = None
@@ -147,7 +148,7 @@ class Dashboard:
         if self.cancelled:
             progress += f" | interrupted {self.cancelled}"
         timers = f"Active {elapsed(now - self.active_started) if self.active else '--:--:--'} | total {elapsed(now - self.started)}"
-        lines = ["Benchmark execution | " + self.batch, "Phase: " + phase, progress, timers]
+        lines = ["Benchmark suite | " + self.suite, "Phase: " + phase, progress, timers]
         if self.active:
             lines.append("Workload: " + self.active.workload)
             # Wrap explicitly, leaving the final terminal column unused to avoid autowrap.
@@ -183,7 +184,7 @@ class Dashboard:
                         style = "\033[33m"
                     else:
                         style = "\033[36m"
-                elif line.startswith("Benchmark execution"):
+                elif line.startswith("Benchmark suite"):
                     style = "\033[1m"
                 elif line.startswith("Active "):
                     style = "\033[2m"
@@ -243,7 +244,7 @@ class Dashboard:
             print(
                 f"{outcome}: {self.completed}/{self.total} operations completed, "
                 f"{self.passed} passed, {self.failed} failed{interruptions}; "
-                f"total {elapsed(time.monotonic() - self.started)}; batch {self.batch}",
+                f"total {elapsed(time.monotonic() - self.started)}; suite {self.suite}",
                 flush=True,
             )
         self.rows = 0
@@ -323,13 +324,13 @@ def main():
     venv = os.path.abspath(".venv")
     environment["VIRTUAL_ENV"] = venv
     environment["PATH"] = os.path.join(venv, "bin") + os.pathsep + environment.get("PATH", "")
-    batch = environment.get("BENCHMARK_BATCH_ID")
-    if not batch:
-        batch = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ") + f"-{os.getpid()}"
-        environment["BENCHMARK_BATCH_ID"] = batch
+    suite = environment.get("BENCHMARK_SUITE_ID") or uuid4().hex
+    environment["BENCHMARK_SUITE_ID"] = suite
+    environment["BENCHMARK_SUITE_STARTED_AT"] = datetime.now(UTC).isoformat()
+    environment.pop("BENCHMARK_BATCH_ID", None)
     matrix = operations(*counts)
     live = not args.plain and sys.stdout.isatty() and environment.get("TERM") != "dumb"
-    dashboard = Dashboard(live, len(matrix), batch)
+    dashboard = Dashboard(live, len(matrix), suite)
     interrupted = [0]
 
     def on_signal(signum, frame):
@@ -349,7 +350,10 @@ def main():
             dashboard.start(operation)
             if interrupted[0]:
                 break
-            result = execute(operation, dashboard, environment, interrupted)
+            operation_environment = environment.copy()
+            if operation.benchmark:
+                operation_environment["BENCHMARK_BATCH_ID"] = uuid4().hex
+            result = execute(operation, dashboard, operation_environment, interrupted)
             dashboard.complete(result, bool(interrupted[0]))
             if interrupted[0]:
                 break

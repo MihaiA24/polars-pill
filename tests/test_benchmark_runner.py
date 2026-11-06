@@ -1,3 +1,4 @@
+import json
 import os
 import selectors
 import signal
@@ -7,6 +8,8 @@ import tempfile
 import textwrap
 import time
 import unittest
+from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -105,6 +108,78 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 if benchmark_status:
                     self.assertIn("fixture: benchmark could not read its input", output)
                 self.assertNotIn("\x1b", output)
+
+    def test_real_protocol_rows_keep_suites_and_configuration_batches_separate(self):
+        self.write_executable(
+            ".venv/bin/python",
+            f"#!{sys.executable}\n"
+            + textwrap.dedent(
+                f"""\
+                import sys
+                from unittest.mock import patch
+
+                sys.path.insert(0, {str(ROOT)!r})
+                import utils
+
+                options = dict(zip(sys.argv[2::2], sys.argv[3::2]))
+
+                def execute():
+                    utils.save_execution_time(
+                        "Fixture", 0.25, "CPU", " ".join(sys.argv[1:-4]), "fixture.csv", "simple", version="1"
+                    )
+                    return True
+
+                with (
+                    patch.object(utils, "_source_metadata", return_value={{}}),
+                    patch.object(utils, "_resource_metadata", return_value={{
+                        "hardware": {{"host_id": "fixture-host", "cpu_model": "Fixture CPU", "memory_bytes": 1024, "gpus": []}}
+                    }}),
+                ):
+                    raise SystemExit(not utils.run_benchmark(
+                        execute, warmups=int(options["--warmups"]), repetitions=int(options["--repetitions"])
+                    ))
+                """
+            ),
+        )
+        previous = (self.work / "benchmarks.jsonl").read_bytes()
+        suites = []
+        for suite_override in ("", "", "explicit-fixture-suite"):
+            result = self.run_runner(
+                "--plain",
+                BENCHMARK_BATCH_ID="inherited-matrix-batch",
+                BENCHMARK_SUITE_ID=suite_override,
+                BENCHMARK_SUITE_STARTED_AT="2000-01-01T00:00:00+00:00",
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            rows = [
+                json.loads(line)
+                for line in (self.work / "benchmarks.jsonl").read_text().splitlines()
+                if "suite_id" in json.loads(line)
+            ]
+            current_suite = rows[-1]["suite_id"]
+            current = [row for row in rows if row["suite_id"] == current_suite]
+            self.assertTrue(current_suite)
+            self.assertNotIn(current_suite, suites)
+            if suite_override:
+                self.assertEqual(current_suite, suite_override)
+            suites.append(current_suite)
+            self.assertEqual(len({row["suite_started_at"] for row in current}), 1)
+            self.assertIsNotNone(datetime.fromisoformat(current[0]["suite_started_at"]).utcoffset())
+            self.assertNotEqual(current[0]["suite_started_at"], "2000-01-01T00:00:00+00:00")
+            batches = defaultdict(list)
+            for row in current:
+                batches[row["batch_id"]].append(row)
+            self.assertGreater(len(batches), 1)
+            self.assertNotIn("inherited-matrix-batch", batches)
+            for batch_rows in batches.values():
+                self.assertEqual(
+                    [(row["phase"], row["repetition"]) for row in batch_rows], [("cold", 1), ("warm", 1), ("warm", 2)]
+                )
+                self.assertEqual(len({row["engine"] for row in batch_rows}), 1)
+                self.assertTrue(all(row["error"] is None for row in batch_rows))
+            self.assertEqual({row["suite_id"] for row in rows}, set(suites))
+            self.assertEqual(len({row["batch_id"] for row in rows}), len(batches) * len(suites))
+        self.assertTrue((self.work / "benchmarks.jsonl").read_bytes().startswith(previous))
 
     def test_failed_gpu_sync_aborts_before_gpu_cases_and_report(self):
         self.write_executable(

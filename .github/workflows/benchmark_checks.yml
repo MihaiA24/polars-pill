@@ -62,6 +62,8 @@ jobs:
           .venv/bin/python -m ruff format --check
           00_preprocess.py duckdb_evaluation.py pandas_evaluation.py polars_evaluation.py pyspark_evaluation.py
           run_benchmark.py utils.py plot_benchmarks.py schemas.py nyc tests
+      - name: Check report JavaScript syntax
+        run: node --check benchmark_report.js
       - name: Check benchmark CLI entrypoint
         run: .venv/bin/python run_benchmark.py --help
       - name: Run complete CPU fixture suite

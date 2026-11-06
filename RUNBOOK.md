@@ -41,6 +41,11 @@ SIGTERM cleans up with status 143. Neither starts later cases or generates a rep
 recorded measurements remain intact. Terminal state is restored on completion, failure or interruption.
 The shell runner has been replaced; `python3 run_benchmark.py --help` describes the CLI.
 
+One invocation has a `suite_id` and start timestamp shared by the whole matrix. Each
+configuration has its own `batch_id`. `BENCHMARK_SUITE_ID` can set the full-run identity;
+the runner ignores inherited `BENCHMARK_BATCH_ID` values. Standalone configuration CLIs
+create a single-configuration suite and still accept `BENCHMARK_BATCH_ID`.
+
 Each configuration uses one process: one measured **cold** attempt, one unrecorded warm-up,
 then five measured **warm** attempts. A failure stops further attempts for that configuration;
 failed warm-ups are recorded too. Override the defaults for the matrix:
@@ -106,8 +111,9 @@ or preloaded in-memory tables are included in its timed path:
 ## Results and charts
 
 `benchmarks.jsonl` is append-only: each measured attempt records library/backend versions,
-phase, batch, repetition counts, query/total seconds and any error. Failed attempts have
-null durations, never zero-time bars; a killed process may exit before recording.
+suite, phase, configuration batch, repetition counts, query/total seconds, timer scopes and
+any error. Failed attempts have null durations, never zero-time bars; a killed process may
+exit before recording.
 
 - Query time covers read/compute/write, including engine first-use work when it occurs there.
   Cold totals add library/session startup, excluding interpreter launch; warm totals cover
@@ -116,6 +122,9 @@ null durations, never zero-time bars; a killed process may exit before recording
 - Provenance includes source revision/dirty status, input paths/sizes/mtimes (not content hashes),
   CPU/thread/OS limits, Spark's configured memory plus actual JVM heap, and DuckDB's actual
   thread count, memory limit and spill directory. DuckDB uses its native default resource settings.
+- New Linux records include a hashed host identity, CPU model and physical RAM. NVIDIA
+  inventory adds GPU UUIDs, models, memory and driver versions when `nvidia-smi` is available.
+  These probes run outside the timers. Failures remain metadata errors, not failed attempts.
 - Output Parquet footers supply actual file counts, rows, schema and codecs. A GPU fixture
   produced mixed Snappy/uncompressed chunks despite requesting Snappy; metadata preserves
   actual encoding rather than assuming every chunk is compressed. Probe errors are explicit.
@@ -128,10 +137,27 @@ Regenerate the report with development dependencies in your selected environment
 .venv/bin/python plot_benchmarks.py --input benchmarks.jsonl --output BENCHMARKS.html
 ```
 
-The standalone HTML separates cold, warm and legacy protocol results. Tables show successful/
-expected samples, median and min–max within the same batch/configuration. Charts compare
-versions side by side with range whiskers; failed/incomplete groups have no bar.
-Details retain metadata and individual attempts; raw measurements stay in JSONL.
+The standalone HTML opens the latest suite by start time, not JSONL append order. Dataset,
+query and phase filters hide each table and its chart together. History lists older suites
+and an explicit unassigned scope for records without suite identity. Legacy attempts have
+their own view. Existing records are not relabelled or rewritten.
+
+Tables retain successful/expected samples, medians and min–max within each configuration
+batch. Visible batch IDs and UTC dates distinguish repeated configurations. Full IDs,
+metadata and individual attempts remain in Measurement details; raw measurements stay
+in JSONL. Failed or incomplete groups have no chart bar.
+
+Each section has a baseline selector. Speedup divides the baseline median by the candidate
+median, using total seconds for cold measurements and query seconds for warm measurements.
+Values above 1× mean the candidate is faster. Both results must be complete and positive,
+with matching workload, phase, timer scope, cache policy, input snapshots and known hardware.
+GPU comparisons also require matching GPU inventories. Unknown or different metadata,
+failures and zero times leave the measurements visible with an explanation instead of a ratio.
+Input snapshots compare paths, sizes and modification times, not file contents; resource
+budgets remain the libraries' recorded settings rather than an enforced common limit.
+
+The generator embeds `benchmark_report.js` in the HTML. The report needs no server,
+external assets or network connection. Without JavaScript, all sections remain readable.
 
 The first 28 records originate from
 [`00aa8e9`](https://github.com/MihaiA24/polars-pill/commit/00aa8e90e4324f9f8469dcd0e4061617bfdc0b0f);
@@ -168,6 +194,7 @@ in CI so Spark coverage cannot silently skip; local Spark cases skip if Java is 
 
 ```shell
 .venv/bin/python -m unittest discover -s tests -v
+node --check benchmark_report.js
 ```
 
 The [benchmark CI workflow](.github/workflows/benchmark_checks.yml) uses Python 3.12, the
@@ -178,6 +205,7 @@ leaving the other locked dependencies unchanged. The optional plugin is installe
 DuckDB CLI fixtures cover Float32-sensitive medians, join filtering/multiplicity, null-first
 ordering, Snappy output and failure recording in both jobs.
 Root and plugin checks use the same pinned Ruff version.
+CI also checks the report interaction script's syntax with Node.
 
 The [plugin workflow](.github/workflows/publish_to_pypi.yml) builds five native wheel targets
 through one platform matrix and tests seven Python/Polars pairs in a separate runtime matrix.
