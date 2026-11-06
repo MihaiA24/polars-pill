@@ -10,7 +10,6 @@ dependencies = [
     "pyspark>=4.3.0",
     "pandas>=3.1.1",
     "pyiceberg[sql-sqlite]>=0.12.0", # >=0.12 rejects the broken pydantic 2.12.0/2.12.1 itself
- #   "polars-sha",
 ]
 
 [dependency-groups]
@@ -20,7 +19,6 @@ checks = [
 ]
 dev = [
     {include-group = "checks"},
-    "cookiecutter>=2.6.0",
     "notebook>=7.4.3",
 ]
 cpu_polars = [
@@ -40,9 +38,6 @@ conflicts = [
         {group = "gpu_polars"}
     ] 
 ]
-
-[tool.uv.sources]
-# polars-sha = { path = "polars_sha/target/wheels/polars_sha-0.1.0-cp39-abi3-manylinux_2_34_x86_64.whl" }
 
 [tool.ruff]
 line-length = 120

@@ -75,30 +75,20 @@ def nyc_taxi_execution(
             .withColumnRenamed("service_zone", "DO_service_zone")
         )
 
-        if execution_query == "simple":
-            result = (
-                df.groupBy("trip_distance")
-                .agg(
-                    count("*").alias("trip_count"),
-                    sum("fare_amount").alias("total_revenue"),
-                    avg("fare_amount").alias("avg_fare"),
-                    avg("trip_distance").alias("avg_distance"),
-                    avg("tip_amount").alias("avg_tip"),
-                )
-                .orderBy("trip_distance")
+        keys = ["trip_distance"]
+        if execution_query != "simple":
+            keys += ["DO_Zone", "DO_Borough", "PU_Borough"]
+        result = (
+            df.groupBy(*keys)
+            .agg(
+                count("*").alias("trip_count"),
+                sum("fare_amount").alias("total_revenue"),
+                avg("fare_amount").alias("avg_fare"),
+                avg("trip_distance").alias("avg_distance"),
+                avg("tip_amount").alias("avg_tip"),
             )
-        else:
-            result = (
-                df.groupBy("trip_distance", "DO_Zone", "DO_Borough", "PU_Borough")
-                .agg(
-                    count("*").alias("trip_count"),
-                    sum("fare_amount").alias("total_revenue"),
-                    avg("fare_amount").alias("avg_fare"),
-                    avg("trip_distance").alias("avg_distance"),
-                    avg("tip_amount").alias("avg_tip"),
-                )
-                .orderBy("trip_distance", "DO_Zone", "DO_Borough", "PU_Borough")
-            )
+            .orderBy(*keys)
+        )
 
         result.write.mode("overwrite").option("compression", "snappy").parquet("data/out/pyspark.parquet")
         duration = perf_counter() - start_time
@@ -112,7 +102,7 @@ def nyc_taxi_execution(
 
 
 if __name__ == "__main__":
-    try:
+    with spark:
         parser = argparse.ArgumentParser()
         parser.add_argument("--file_path", type=str)
         parser.add_argument("--file_type", type=str, default="csv")
@@ -152,6 +142,4 @@ if __name__ == "__main__":
             output_path=output_path,
             resources=spark_resources,
         )
-    finally:
-        spark.stop()
     sys.exit(0 if success else 1)

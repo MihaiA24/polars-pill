@@ -12,18 +12,6 @@ class DuckDBBenchmarkTests(BenchmarkFixture):
     def records(self):
         return [json.loads(line) for line in (self.root / "benchmarks.jsonl").read_text().splitlines()]
 
-    def read_output(self):
-        parquet = pq.ParquetFile(self.root / "data/out/duckdb.parquet")
-        self.assertEqual(
-            {
-                parquet.metadata.row_group(group).column(column).compression
-                for group in range(parquet.metadata.num_row_groups)
-                for column in range(parquet.metadata.num_columns)
-            },
-            {"SNAPPY"},
-        )
-        return parquet
-
     def assert_success_records(self, dataset, query):
         records = self.records()[-2:]
         self.assertEqual([(row["phase"], row["repetition"]) for row in records], [("cold", 1), ("warm", 1)])
@@ -58,7 +46,7 @@ class DuckDBBenchmarkTests(BenchmarkFixture):
         for file_type, path in (("csv", events), ("parquet", prepared)):
             with self.subTest(file_type=file_type):
                 self.run_cli("duckdb_evaluation.py", "--file_path", path, "--file_type", file_type)
-                parquet = self.read_output()
+                parquet = self.read_snappy_output("duckdb.parquet")
                 self.assertEqual(
                     [(field.name, field.type) for field in parquet.schema_arrow],
                     [("product_id", pa.int32()), ("sum_price", pa.float32())],
@@ -115,7 +103,7 @@ class DuckDBBenchmarkTests(BenchmarkFixture):
         for query, color, fare, tip in (("simple", "green", 10.0, 4.0), ("complex", "yellow", 14.0, 6.0)):
             with self.subTest(query=query, color=color):
                 self.run_cli("duckdb_evaluation.py", "--dataset_type", f"nyc-{color}", "--execution_query", query)
-                parquet = self.read_output()
+                parquet = self.read_snappy_output("duckdb.parquet")
                 for name, dtype in (
                     ("trip_distance", pa.float32()),
                     ("trip_count", pa.int64()),

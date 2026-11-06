@@ -60,31 +60,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Polars 2.1 requires Python >=3.11; Python 3.10 is covered by the legacy job.
-        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Set up Rust
-        run: rustup show
-      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
-      - run: make venv
-      - run: .venv/bin/python -m pip install polars==2.1.0
-      - run: make install
-        env:
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: sccache
-      - run: make test
-
-  linux-legacy-versions-just-test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
         include:
+          - python-version: "3.11"
+            polars-version: "2.1.0"
+          - python-version: "3.12"
+            polars-version: "2.1.0"
+          - python-version: "3.13"
+            polars-version: "2.1.0"
+          - python-version: "3.14"
+            polars-version: "2.1.0"
+          - python-version: "3.15"
+            polars-version: "2.1.0"
           - python-version: "3.10"
             polars-version: "1.42.0"  # plugin minimum; Python 3.10 cannot install Polars 2.1
           - python-version: "3.12"
@@ -106,7 +92,7 @@ jobs:
           RUSTC_WRAPPER: sccache
       - run: make test
 
-  linux:
+  wheels:
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       fail-fast: false
@@ -114,13 +100,30 @@ jobs:
         platform:
           - runner: ubuntu-latest
             target: x86_64
+            python-architecture: x64
+            name: linux
           - runner: ubuntu-latest
             target: aarch64
+            python-architecture: x64
+            name: linux
+          - runner: windows-latest
+            target: x64
+            python-architecture: x64
+            name: windows
+          - runner: macos-26-intel
+            target: x86_64
+            python-architecture: x64
+            name: macos
+          - runner: macos-26
+            target: aarch64
+            python-architecture: arm64
+            name: macos
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: 3.x
+          architecture: ${{ matrix.platform.python-architecture }}
       - name: Build wheels
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
@@ -133,64 +136,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: wheels-linux-${{ matrix.platform.target }}
-          path: polars_sha/dist
-
-  windows:
-    runs-on: ${{ matrix.platform.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - runner: windows-latest
-            target: x64
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: 3.x
-          architecture: ${{ matrix.platform.target }}
-      - name: Build wheels
-        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
-        with:
-          working-directory: polars_sha
-          maturin-version: "1.16.0"
-          target: ${{ matrix.platform.target }}
-          args: --release --out dist
-          sccache: 'true'
-      - name: Upload wheels
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: wheels-windows-${{ matrix.platform.target }}
-          path: polars_sha/dist
-
-  macos:
-    runs-on: ${{ matrix.platform.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - runner: macos-26-intel
-            target: x86_64
-          - runner: macos-26
-            target: aarch64
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: 3.x
-      - name: Build wheels
-        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
-        with:
-          working-directory: polars_sha
-          maturin-version: "1.16.0"
-          target: ${{ matrix.platform.target }}
-          args: --release --out dist
-          sccache: 'true'
-      - name: Upload wheels
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: wheels-macos-${{ matrix.platform.target }}
+          name: wheels-${{ matrix.platform.name }}-${{ matrix.platform.target }}
           path: polars_sha/dist
 
   sdist:
@@ -214,7 +160,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
-    needs: [lint, linux-just-test, linux-legacy-versions-just-test, linux, windows, macos, sdist]
+    needs: [lint, linux-just-test, wheels, sdist]
     environment: pypi
     permissions:
       # Use to sign the release artifacts

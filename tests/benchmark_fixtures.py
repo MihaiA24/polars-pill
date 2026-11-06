@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import polars as pl
+import pyarrow.parquet as pq
 
 from schemas import default_schema
 
@@ -19,6 +20,18 @@ class BenchmarkFixture(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         (self.root / "data/out").mkdir(parents=True)
+
+    def read_snappy_output(self, name):
+        parquet = pq.ParquetFile(self.root / "data/out" / name)
+        self.assertEqual(
+            {
+                parquet.metadata.row_group(group).column(column).compression
+                for group in range(parquet.metadata.num_row_groups)
+                for column in range(parquet.metadata.num_columns)
+            },
+            {"SNAPPY"},
+        )
+        return parquet
 
     def write_ecommerce(self):
         path = self.root / "events.csv"

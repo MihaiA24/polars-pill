@@ -83,24 +83,16 @@ def nyc_taxi_execution(
             .rename({"Borough": "DO_Borough", "Zone": "DO_Zone", "service_zone": "DO_service_zone"})
         )
 
-        if execution_query == "simple":
-            df.group_by("trip_distance").agg(
-                pl.len().alias("trip_count"),
-                pl.sum("fare_amount").alias("total_revenue"),
-                pl.mean("fare_amount").alias("avg_fare"),
-                pl.mean("trip_distance").alias("avg_distance"),
-                pl.mean("tip_amount").alias("avg_tip"),
-            ).sort("trip_distance").sink_parquet(out_path, engine=polars_engine, compression="snappy", mkdir=True)
-        else:
-            df.group_by(["trip_distance", "DO_Zone", "DO_Borough", "PU_Borough"]).agg(
-                pl.len().alias("trip_count"),
-                pl.sum("fare_amount").alias("total_revenue"),
-                pl.mean("fare_amount").alias("avg_fare"),
-                pl.mean("trip_distance").alias("avg_distance"),
-                pl.mean("tip_amount").alias("avg_tip"),
-            ).sort(["trip_distance", "DO_Zone", "DO_Borough", "PU_Borough"]).sink_parquet(
-                out_path, engine=polars_engine, compression="snappy", mkdir=True
-            )
+        keys = ["trip_distance"]
+        if execution_query != "simple":
+            keys += ["DO_Zone", "DO_Borough", "PU_Borough"]
+        df.group_by(keys).agg(
+            pl.len().alias("trip_count"),
+            pl.sum("fare_amount").alias("total_revenue"),
+            pl.mean("fare_amount").alias("avg_fare"),
+            pl.mean("trip_distance").alias("avg_distance"),
+            pl.mean("tip_amount").alias("avg_tip"),
+        ).sort(keys).sink_parquet(out_path, engine=polars_engine, compression="snappy", mkdir=True)
         duration = perf_counter() - start_time
     except Exception as e:
         logger.exception("Polars %s %s %s %s failed", cpu_gpu, engine, dataset_type, execution_query)

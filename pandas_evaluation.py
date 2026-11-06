@@ -2,7 +2,6 @@ import argparse
 import logging
 import sys
 from time import perf_counter
-from typing import Literal
 
 from utils import PROCESS_STARTED, add_benchmark_arguments, run_benchmark, save_execution_time
 
@@ -15,7 +14,7 @@ from schemas import pd_schema
 logger = logging.getLogger(__name__)
 
 
-def ecommerce_execution(file_type: Literal["csv", "parquet"], file_path: str) -> bool:
+def ecommerce_execution(file_path: str) -> bool:
     duration = error = None
     try:
         start_time = perf_counter()
@@ -35,7 +34,6 @@ def ecommerce_execution(file_type: Literal["csv", "parquet"], file_path: str) ->
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", type=str)
-    parser.add_argument("--file_type", type=str, default="csv")
     add_benchmark_arguments(parser)
 
     args = parser.parse_args()
@@ -43,7 +41,7 @@ if __name__ == "__main__":
         parser.error("--file_path is required for ecommerce")
 
     success = run_benchmark(
-        lambda: ecommerce_execution(args.file_type, args.file_path),
+        lambda: ecommerce_execution(args.file_path),
         warmups=args.warmups,
         repetitions=args.repetitions,
         process_started=PROCESS_STARTED,

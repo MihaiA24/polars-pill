@@ -18,7 +18,3 @@ dependencies = [
 
 [tool.maturin]
 module-name = "polars_sha._internal"
-
-[[tool.mypy.overrides]]
-module = "polars.utils.udfs"
-ignore_missing_imports = true

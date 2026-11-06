@@ -52,6 +52,7 @@ BENCHMARK_WARMUPS=0 BENCHMARK_REPETITIONS=3 python3 run_benchmark.py
 Individual CLIs accept `--warmups N` (≥0) and `--repetitions N` (≥1).
 Missing or blank e-commerce `--file_path` arguments exit with usage status 2 without recording.
 
+- pandas reads CSV only through `--file_path`; there is no `--file_type` selector.
 - Eager Polars is in-memory. Lazy CSV/Parquet runs select in-memory and streaming separately.
 - NYC CPU engines and GPU executors are explicit. The CLI defaults to `--engine in-memory`;
   eager + streaming is rejected. Polars 2's streaming default does not change these selections.
@@ -147,6 +148,8 @@ that full inventory is not captured per record.
 - GPU profiling is available only on the 1.x in-memory executor. Stop `DefaultSingletonEngine`
   before an explicit `DaskEngine`; distributed sinks require directories. After an OOM, rerun
   the setup cells identified by the notebook. Colab installs its own pinned environment.
+  Each GPU notebook defines its shared taxi query builder in setup and calls it inside the
+  timed cells, so plan construction remains part of the timing.
 - Spark 4.3 warns about pandas ≥3 interop. The benchmarks use native Spark DataFrames and measure
   pandas separately; they do not use Spark↔pandas conversion APIs.
 - Cloud monitoring uploads local-query metrics and requires authentication/default-workspace access.
@@ -176,9 +179,10 @@ DuckDB CLI fixtures cover Float32-sensitive medians, join filtering/multiplicity
 ordering, Snappy output and failure recording in both jobs.
 Root and plugin checks use the same pinned Ruff version.
 
-The [plugin workflow](.github/workflows/publish_to_pypi.yml) separately builds native wheels,
-runs read-only formatting/lint/type checks once, and tests Python 3.10–3.15 compatibility.
-Use [plugin development commands](polars_sha/README.md#development) to reproduce those checks.
+The [plugin workflow](.github/workflows/publish_to_pypi.yml) builds five native wheel targets
+through one platform matrix and tests seven Python/Polars pairs in a separate runtime matrix.
+Read-only formatting/lint/type checks run once. Use the
+[plugin development commands](polars_sha/README.md#development) to reproduce those checks.
 Actions are SHA-pinned to verified releases; stale PR runs are cancelled without interrupting
 tag publication. Hosted CI does not run full-data or GPU performance benchmarks.
 

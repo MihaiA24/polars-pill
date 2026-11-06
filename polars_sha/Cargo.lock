@@ -1528,7 +1528,6 @@ dependencies = [
  "polars-arrow",
  "pyo3",
  "pyo3-polars",
- "serde",
  "sha2 0.10.9",
 ]
 

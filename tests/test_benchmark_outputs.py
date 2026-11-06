@@ -7,18 +7,6 @@ from benchmark_fixtures import BenchmarkFixture
 
 
 class BenchmarkOutputTests(BenchmarkFixture):
-    def read_snappy_output(self, name):
-        parquet = pq.ParquetFile(self.root / "data/out" / name)
-        self.assertEqual(
-            {
-                parquet.metadata.row_group(group).column(column).compression
-                for group in range(parquet.metadata.num_row_groups)
-                for column in range(parquet.metadata.num_columns)
-            },
-            {"SNAPPY"},
-        )
-        return parquet
-
     def test_pandas_output_has_only_native_product_medians_and_snappy(self):
         events = self.write_ecommerce()
         self.run_cli("pandas_evaluation.py", "--file_path", events)

@@ -136,8 +136,7 @@ def main() -> int:
     if args.dataset_type == "ecommerce" and (not args.file_path or not args.file_path.strip()):
         parser.error("--file_path is required for ecommerce")
 
-    connection = duckdb.connect()
-    try:
+    with duckdb.connect() as connection:
         if args.dataset_type == "ecommerce":
             execute = lambda: ecommerce_execution(connection, args.file_type, args.file_path)
             input_paths = (args.file_path,)
@@ -165,8 +164,6 @@ def main() -> int:
             output_path=OUTPUT_PATH,
             resources=duckdb_resources,
         )
-    finally:
-        connection.close()
     return 0 if success else 1
 
 

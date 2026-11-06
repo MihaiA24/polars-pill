@@ -4,7 +4,7 @@ from tempfile import NamedTemporaryFile
 
 import polars as pl
 
-from schemas import generate_polars_cast, pl_schema
+from schemas import default_schema, pl_schema
 
 # Some parquets use different names and dtypes; normalize both before merging.
 for color, column_mapping in {
@@ -26,7 +26,9 @@ for color, column_mapping in {
             schema.pop(column)
         year_dtype = schema.pop("year", None)
         month_dtype = schema.pop("month", None)
-        cast_schema = generate_polars_cast(schema)
+        cast_schema = [
+            pl.col(name).cast(default_schema[name]) for name, dtype in schema.items() if dtype != default_schema[name]
+        ]
         if not (renames or drop_columns or cast_schema or year_dtype != pl.Int16 or month_dtype != pl.Int8):
             print("Skipping... ", file)
             continue
