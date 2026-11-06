@@ -72,7 +72,7 @@ def operations(warmups, repetitions):
                 query,
             )
             for engine in ("in-memory", "streaming")
-            for query in ("simple", "complex")
+            for query in ("simple", "complex", "filtered")
         ]
 
     cpu = "CPU benchmarks"
@@ -88,7 +88,7 @@ def operations(warmups, repetitions):
     for dataset in ("nyc-green", "nyc-yellow"):
         matrix.extend(polars_nyc(cpu, dataset, "False"))
         for script in ("pyspark", "duckdb"):
-            for query in ("simple", "complex"):
+            for query in ("simple", "complex", "filtered"):
                 matrix.append(benchmark(cpu, script, "--dataset_type", dataset, "--execution_query", query))
     matrix.append(Operation("GPU setup", ("uv", "sync", "--locked", "--group", "gpu_polars", "--no-dev")))
     baseline = "GPU-version CPU baselines"

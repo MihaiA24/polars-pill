@@ -67,34 +67,46 @@ def ecommerce_execution(
 def nyc_taxi_execution(
     connection: duckdb.DuckDBPyConnection,
     dataset_type: Literal["nyc-green", "nyc-yellow"],
-    execution_query: Literal["simple", "complex"] = "simple",
+    execution_query: Literal["simple", "complex", "filtered"] = "simple",
 ) -> bool:
     duration = error = None
     try:
         start_time = perf_counter()
         dataset = "yellow" if dataset_type == "nyc-yellow" else "green"
-        grouping_keys = ["trip_distance"]
-        if execution_query == "complex":
-            grouping_keys += ["DO_Zone", "DO_Borough", "PU_Borough"]
-        grouping = ", ".join(grouping_keys)
-        ordering = ", ".join(f"{key} ASC NULLS FIRST" for key in grouping_keys)
-        query = f"""
-            COPY (
+        parameters = [f"data/nyc-taxi/{dataset}.parquet"]
+        if execution_query == "filtered":
+            grouping_keys = ["PULocationID"]
+            source = """
+                SELECT PULocationID, trip_distance, fare_amount, tip_amount
+                FROM read_parquet($1)
+                WHERE trip_distance > 0 AND fare_amount > 0
+            """
+        else:
+            grouping_keys = ["trip_distance"]
+            if execution_query == "complex":
+                grouping_keys += ["DO_Zone", "DO_Borough", "PU_Borough"]
+            parameters.append("data/nyc-taxi/taxi_zone_lookup.csv")
+            source = """
                 WITH zones AS (
-                    SELECT * FROM read_csv($2, header = true, columns = {{
+                    SELECT * FROM read_csv($2, header = true, columns = {
                         'LocationID': 'INTEGER',
                         'Borough': 'VARCHAR',
                         'Zone': 'VARCHAR',
                         'service_zone': 'VARCHAR'
-                    }})
-                ), joined AS (
-                    SELECT trips.trip_distance, trips.fare_amount, trips.tip_amount,
-                        dropoff.Zone AS DO_Zone, dropoff.Borough AS DO_Borough,
-                        pickup.Borough AS PU_Borough
-                    FROM read_parquet($1) AS trips
-                    INNER JOIN zones AS pickup ON trips.PULocationID = pickup.LocationID
-                    INNER JOIN zones AS dropoff ON trips.DOLocationID = dropoff.LocationID
+                    })
                 )
+                SELECT trips.trip_distance, trips.fare_amount, trips.tip_amount,
+                    dropoff.Zone AS DO_Zone, dropoff.Borough AS DO_Borough,
+                    pickup.Borough AS PU_Borough
+                FROM read_parquet($1) AS trips
+                INNER JOIN zones AS pickup ON trips.PULocationID = pickup.LocationID
+                INNER JOIN zones AS dropoff ON trips.DOLocationID = dropoff.LocationID
+            """
+        grouping = ", ".join(grouping_keys)
+        ordering = ", ".join(f"{key} ASC NULLS FIRST" for key in grouping_keys)
+        query = f"""
+            COPY (
+                WITH joined AS ({source})
                 SELECT {grouping},
                     count(*) AS trip_count,
                     sum(fare_amount) AS total_revenue,
@@ -104,12 +116,10 @@ def nyc_taxi_execution(
                 FROM joined
                 GROUP BY {grouping}
                 ORDER BY {ordering}
-            ) TO $3 (FORMAT PARQUET, COMPRESSION SNAPPY)
+            ) TO ${len(parameters) + 1} (FORMAT PARQUET, COMPRESSION SNAPPY)
         """
         Path(OUTPUT_PATH).parent.mkdir(parents=True, exist_ok=True)
-        connection.execute(
-            query, [f"data/nyc-taxi/{dataset}.parquet", "data/nyc-taxi/taxi_zone_lookup.csv", OUTPUT_PATH]
-        )
+        connection.execute(query, [*parameters, OUTPUT_PATH])
         duration = perf_counter() - start_time
     except Exception as e:
         logger.exception("DuckDB %s %s benchmark failed", dataset_type, execution_query)
@@ -127,7 +137,7 @@ def main() -> int:
     parser.add_argument("--dataset_type", choices=["ecommerce", "nyc-green", "nyc-yellow"], default="ecommerce")
     parser.add_argument(
         "--execution_query",
-        choices=["simple", "complex"],
+        choices=["simple", "complex", "filtered"],
         default="simple",
         help="NYC query variant; ecommerce always runs the simple median workload.",
     )
@@ -143,7 +153,9 @@ def main() -> int:
         else:
             execute = lambda: nyc_taxi_execution(connection, args.dataset_type, args.execution_query)
             dataset = "yellow" if args.dataset_type == "nyc-yellow" else "green"
-            input_paths = (f"data/nyc-taxi/{dataset}.parquet", "data/nyc-taxi/taxi_zone_lookup.csv")
+            input_paths = (f"data/nyc-taxi/{dataset}.parquet",)
+            if args.execution_query != "filtered":
+                input_paths += ("data/nyc-taxi/taxi_zone_lookup.csv",)
 
         def duckdb_resources():
             threads, memory_limit, temp_directory = connection.execute(

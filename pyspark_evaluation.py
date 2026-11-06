@@ -53,31 +53,33 @@ def ecommerce_execution(file_type: Literal["csv", "parquet"], file_path: str) ->
 
 
 def nyc_taxi_execution(
-    dataset_type: Literal["nyc-green", "nyc-yellow"], execution_query: Literal["simple", "complex"] = "simple"
+    dataset_type: Literal["nyc-green", "nyc-yellow"],
+    execution_query: Literal["simple", "complex", "filtered"] = "simple",
 ) -> bool:
     duration = error = None
     try:
         start_time = perf_counter()
         dataset = "yellow" if dataset_type == "nyc-yellow" else "green"
 
-        df_zones = spark.read.csv("data/nyc-taxi/taxi_zone_lookup.csv", header=True, inferSchema=True)
-
         df = spark.read.parquet(f"data/nyc-taxi/{dataset}.parquet")
-
-        df = (
-            df.join(df_zones.withColumnRenamed("LocationID", "PULocationID"), on="PULocationID", how="inner")
-            .withColumnRenamed("Borough", "PU_Borough")
-            .withColumnRenamed("Zone", "PU_Zone")
-            .withColumnRenamed("service_zone", "PU_service_zone")
-            .join(df_zones.withColumnRenamed("LocationID", "DOLocationID"), on="DOLocationID", how="inner")
-            .withColumnRenamed("Borough", "DO_Borough")
-            .withColumnRenamed("Zone", "DO_Zone")
-            .withColumnRenamed("service_zone", "DO_service_zone")
-        )
-
-        keys = ["trip_distance"]
-        if execution_query != "simple":
-            keys += ["DO_Zone", "DO_Borough", "PU_Borough"]
+        if execution_query == "filtered":
+            df = df.filter((col("trip_distance") > 0) & (col("fare_amount") > 0))
+            keys = ["PULocationID"]
+        else:
+            df_zones = spark.read.csv("data/nyc-taxi/taxi_zone_lookup.csv", header=True, inferSchema=True)
+            df = (
+                df.join(df_zones.withColumnRenamed("LocationID", "PULocationID"), on="PULocationID", how="inner")
+                .withColumnRenamed("Borough", "PU_Borough")
+                .withColumnRenamed("Zone", "PU_Zone")
+                .withColumnRenamed("service_zone", "PU_service_zone")
+                .join(df_zones.withColumnRenamed("LocationID", "DOLocationID"), on="DOLocationID", how="inner")
+                .withColumnRenamed("Borough", "DO_Borough")
+                .withColumnRenamed("Zone", "DO_Zone")
+                .withColumnRenamed("service_zone", "DO_service_zone")
+            )
+            keys = ["trip_distance"]
+            if execution_query == "complex":
+                keys += ["DO_Zone", "DO_Borough", "PU_Borough"]
         result = (
             df.groupBy(*keys)
             .agg(
@@ -107,7 +109,7 @@ if __name__ == "__main__":
         parser.add_argument("--file_path", type=str)
         parser.add_argument("--file_type", type=str, default="csv")
         parser.add_argument("--dataset_type", type=str, default="ecommerce")
-        parser.add_argument("--execution_query", type=str, default="simple")
+        parser.add_argument("--execution_query", choices=["simple", "complex", "filtered"], default="simple")
         add_benchmark_arguments(parser)
         args = parser.parse_args()
 
@@ -120,7 +122,9 @@ if __name__ == "__main__":
         else:
             execute = lambda: nyc_taxi_execution(args.dataset_type, args.execution_query)
             dataset = "yellow" if args.dataset_type == "nyc-yellow" else "green"
-            input_paths = (f"data/nyc-taxi/{dataset}.parquet", "data/nyc-taxi/taxi_zone_lookup.csv")
+            input_paths = (f"data/nyc-taxi/{dataset}.parquet",)
+            if args.execution_query != "filtered":
+                input_paths += ("data/nyc-taxi/taxi_zone_lookup.csv",)
             output_path = "data/out/pyspark.parquet"
 
         def spark_resources():

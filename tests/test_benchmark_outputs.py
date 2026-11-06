@@ -1,4 +1,5 @@
 import json
+import shutil
 import unittest
 
 import pyarrow as pa
@@ -63,6 +64,62 @@ class BenchmarkOutputTests(BenchmarkFixture):
                         expected_aggregates[1] | {"DO_Zone": "Zone A", "DO_Borough": "A", "PU_Borough": "B"},
                     ]
                 self.assertEqual(sorted(parquet.read().to_pylist(), key=lambda row: row["trip_distance"]), expected)
+
+    def check_filtered_nyc(self, script, output, dataset, *args):
+        taxi = self.root / "data/nyc-taxi"
+        taxi.mkdir(parents=True, exist_ok=True)
+        path = f"data/nyc-taxi/{dataset.removeprefix('nyc-')}.parquet"
+        # No zone lookup or dropoff column: this workload must not perform joins.
+        pq.write_table(
+            pa.table(
+                {
+                    "PULocationID": [2, 1, 1, 1, 1, 1, 1, 1, 1, None, 999],
+                    "trip_distance": [3, 1, 5, 0, -1, None, 2, 2, 2, 4, 6],
+                    "fare_amount": [12, 4, 8, 100, 100, 100, 0, -1, None, 16, 24],
+                    "tip_amount": [-3, None, 2, 100, 100, 100, 100, 100, 100, None, 6],
+                },
+                schema=pa.schema(
+                    [("PULocationID", pa.uint16())]
+                    + [(name, pa.float32()) for name in ("trip_distance", "fare_amount", "tip_amount")]
+                ),
+            ),
+            self.root / path,
+        )
+        self.run_cli(script, "--dataset_type", dataset, "--execution_query", "filtered", *args)
+        table = pq.read_table(self.root / "data/out" / output)
+        columns = ["PULocationID", "trip_count", "total_revenue", "avg_fare", "avg_distance", "avg_tip"]
+        self.assertEqual(table.column_names, columns)
+        rows = sorted(
+            (tuple(row[name] for name in columns) for row in table.to_pylist()),
+            key=lambda row: (row[0] is not None, row[0] or 0),
+        )
+        self.assertEqual(
+            rows,
+            [
+                (None, 1, 16.0, 16.0, 4.0, None),
+                (1, 2, 12.0, 6.0, 3.0, 2.0),
+                (2, 1, 12.0, 12.0, 3.0, -3.0),
+                (999, 1, 24.0, 24.0, 6.0, 6.0),
+            ],
+        )
+        records = [json.loads(line) for line in (self.root / "benchmarks.jsonl").read_text().splitlines()][-2:]
+        self.assertEqual(
+            [(row["query"], [item["path"] for item in row["input_snapshot"]]) for row in records],
+            [("filtered", [path]), ("filtered", [path])],
+        )
+
+    def test_filtered_nyc_polars_and_duckdb_keep_only_positive_trips_without_zone_joins(self):
+        for script, output, dataset, args in (
+            ("polars_evaluation.py", "polars.parquet", "nyc-green", ("--engine", "in-memory")),
+            ("polars_evaluation.py", "polars.parquet", "nyc-yellow", ("--engine", "streaming")),
+            ("duckdb_evaluation.py", "duckdb.parquet", "nyc-green", ()),
+        ):
+            with self.subTest(script=script, dataset=dataset, args=args):
+                self.check_filtered_nyc(script, output, dataset, *args)
+
+    @unittest.skipUnless(shutil.which("java"), "Spark requires Java")
+    def test_filtered_nyc_spark_keeps_only_positive_trips_without_zone_joins(self):
+        self.check_filtered_nyc("pyspark_evaluation.py", "pyspark.parquet", "nyc-yellow")
 
 
 if __name__ == "__main__":

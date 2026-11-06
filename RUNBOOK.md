@@ -65,8 +65,9 @@ Missing or blank e-commerce `--file_path` arguments exit with usage status 2 wit
   selects execution strategies. It is recorded as `CPU / native`, not as a Polars streaming mode.
 - GPU queries use `raise_on_fail=True`: unsupported work is an error, not an unnoticed CPU fallback.
   In-memory runs can exhaust RAM/VRAM on yellow; failures remain part of the results.
-- Every library must perform the same work. Both NYC queries retain both zone joins, even when
-  joined columns are unused: inner joins can remove rows. E-commerce price inputs use Float32.
+- Every library must perform the same work. NYC `simple` and `complex` retain both zone joins,
+  even when joined columns are unused: inner joins can remove rows. `filtered` has no joins
+  and needs only the trip Parquet file. E-commerce price inputs use Float32.
 - All timed sinks request Snappy; pandas omits its index. Spark coalesces only the small
   e-commerce aggregate to one writer, not NYC results.
 - Native aggregate precision is retained: Float32 inputs do not imply identical accumulator
@@ -84,6 +85,31 @@ Individual runs:
 .venv/bin/python polars_evaluation.py --dataset_type nyc-yellow --engine streaming --execution_query simple --gpu_engine True
 ```
 
+### Filtered pickup aggregates
+
+The matrix now includes `--execution_query filtered` for both NYC datasets in Polars CPU
+2.1.0, same-version CPU 1.44.2/GPU comparisons, DuckDB and Spark. Existing `simple` and
+`complex` workloads are unchanged.
+
+This query keeps trips with `trip_distance > 0 AND fare_amount > 0`, groups by `PULocationID`,
+and computes trip count, total revenue, average fare, distance and tip. It sorts pickup IDs
+ascending with nulls first and writes the usual Snappy Parquet output. Null distance/fare
+rows fail the predicate; null tips are excluded from the tip mean, not the trip count.
+Unknown and null pickup IDs remain groups because there is no zone join.
+
+This adds a scan/filter workload with a small grouping key space, rather than another
+distance-based grouping with two joins. It exercises projection, native filtering and
+aggregation; it does not guarantee row-group pruning or a particular filter selectivity.
+Timings still include the read, compute and write. The distinct `filtered` query identity
+keeps these results separate from historical workloads, and input snapshots omit the unused
+zone lookup. Native aggregate precision remains unchanged.
+
+```shell
+.venv/bin/python polars_evaluation.py --dataset_type nyc-green --engine streaming --execution_query filtered
+.venv/bin/python duckdb_evaluation.py --dataset_type nyc-green --execution_query filtered
+.venv/bin/python pyspark_evaluation.py --dataset_type nyc-green --execution_query filtered
+```
+
 Select the GPU group before a standalone GPU run. Use `--no-dev` for benchmark-only installs;
 the full runner adds development dependencies after timing to generate the report.
 
@@ -94,12 +120,13 @@ or preloaded in-memory tables are included in its timed path:
 
 - E-commerce reads CSV with explicit column types (`price FLOAT`, `product_id INTEGER`) or reads
   the prepared Parquet directly, groups by product, and filters `median(price) AS sum_price > 500`.
-- Both NYC variants retain pickup and dropoff inner joins to the zone lookup. Simple groups by
-  trip distance; complex adds dropoff zone/borough and pickup borough. Both compute trip count,
-  total revenue and fare/distance/tip means, sorted by grouping keys with nulls first.
+- NYC `simple` and `complex` retain pickup and dropoff inner joins to the zone lookup. Simple
+  groups by trip distance; complex adds dropoff zone/borough and pickup borough. `filtered`
+  instead filters positive distances/fares and groups by pickup ID without a lookup. All compute
+  trip count, total revenue and fare/distance/tip means, sorted by grouping keys with nulls first.
 - Native aggregate precision is retained. Each attempt writes `data/out/duckdb.parquet` with
   Snappy; a later attempt overwrites that file. The runner includes all three e-commerce inputs
-  and simple/complex queries for both taxi colors, once in the CPU phase.
+  and simple/complex/filtered queries for both taxi colors, once in the CPU phase.
 
 ```shell
 .venv/bin/python duckdb_evaluation.py --file_path data/2019-Oct.csv
@@ -203,7 +230,9 @@ Both Polars 2.1.0 and GPU-compatible 1.44.2 run the complete CPU fixture suite w
 Each job installs `uv.lock` with `--locked`, then selects its exact Polars runtime while
 leaving the other locked dependencies unchanged. The optional plugin is installed separately.
 DuckDB CLI fixtures cover Float32-sensitive medians, join filtering/multiplicity, null-first
-ordering, Snappy output and failure recording in both jobs.
+ordering, Snappy output and failure recording in both jobs. Shared CLI fixtures also verify
+`filtered` results across both Polars CPU engines, DuckDB and Spark: zero/negative/null
+distance and fare exclusion, null-tip means, and null/unknown pickup groups without a zone lookup.
 Root and plugin checks use the same pinned Ruff version.
 CI also checks the report interaction script's syntax with Node.
 

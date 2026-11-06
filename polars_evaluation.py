@@ -58,7 +58,7 @@ def ecommerce_execution(
 def nyc_taxi_execution(
     dataset_type: Literal["nyc-green", "nyc-yellow"],
     engine: Literal["in-memory", "streaming"],
-    execution_query: Literal["simple", "complex"] = "simple",
+    execution_query: Literal["simple", "complex", "filtered"] = "simple",
     gpu_engine: bool = False,
 ) -> bool:
     cpu_gpu = "GPU" if gpu_engine else "CPU"  # Needed in the error path too, so resolve it before the try.
@@ -74,18 +74,21 @@ def nyc_taxi_execution(
         polars_engine = pl.GPUEngine(executor=engine, raise_on_fail=True) if gpu_engine else engine
         dataset = "yellow" if dataset_type == "nyc-yellow" else "green"
         out_path = "data/out/polars.parquet"
-        df_zones = pl.scan_csv("data/nyc-taxi/taxi_zone_lookup.csv", schema=zone_schema)
-        df = (
-            pl.scan_parquet(f"data/nyc-taxi/{dataset}.parquet")
-            .join(df_zones, left_on="PULocationID", right_on="LocationID")
-            .rename({"Borough": "PU_Borough", "Zone": "PU_Zone", "service_zone": "PU_service_zone"})
-            .join(df_zones, left_on="DOLocationID", right_on="LocationID")
-            .rename({"Borough": "DO_Borough", "Zone": "DO_Zone", "service_zone": "DO_service_zone"})
-        )
-
-        keys = ["trip_distance"]
-        if execution_query != "simple":
-            keys += ["DO_Zone", "DO_Borough", "PU_Borough"]
+        df = pl.scan_parquet(f"data/nyc-taxi/{dataset}.parquet")
+        if execution_query == "filtered":
+            df = df.filter((pl.col("trip_distance") > 0) & (pl.col("fare_amount") > 0))
+            keys = ["PULocationID"]
+        else:
+            df_zones = pl.scan_csv("data/nyc-taxi/taxi_zone_lookup.csv", schema=zone_schema)
+            df = (
+                df.join(df_zones, left_on="PULocationID", right_on="LocationID")
+                .rename({"Borough": "PU_Borough", "Zone": "PU_Zone", "service_zone": "PU_service_zone"})
+                .join(df_zones, left_on="DOLocationID", right_on="LocationID")
+                .rename({"Borough": "DO_Borough", "Zone": "DO_Zone", "service_zone": "DO_service_zone"})
+            )
+            keys = ["trip_distance"]
+            if execution_query == "complex":
+                keys += ["DO_Zone", "DO_Borough", "PU_Borough"]
         df.group_by(keys).agg(
             pl.len().alias("trip_count"),
             pl.sum("fare_amount").alias("total_revenue"),
@@ -125,7 +128,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--gpu_engine", type=str, default="False")
     parser.add_argument("--dataset_type", type=str, default="ecommerce")
-    parser.add_argument("--execution_query", type=str, default="simple")
+    parser.add_argument("--execution_query", choices=["simple", "complex", "filtered"], default="simple")
     add_benchmark_arguments(parser)
 
     args = parser.parse_args()
@@ -139,7 +142,9 @@ if __name__ == "__main__":
             args.dataset_type, args.engine, args.execution_query, args.gpu_engine == "True"
         )
         dataset = "yellow" if args.dataset_type == "nyc-yellow" else "green"
-        input_paths = (f"data/nyc-taxi/{dataset}.parquet", "data/nyc-taxi/taxi_zone_lookup.csv")
+        input_paths = (f"data/nyc-taxi/{dataset}.parquet",)
+        if args.execution_query != "filtered":
+            input_paths += ("data/nyc-taxi/taxi_zone_lookup.csv",)
     success = run_benchmark(
         execute,
         warmups=args.warmups,
