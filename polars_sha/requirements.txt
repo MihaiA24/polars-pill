@@ -1,5 +1,5 @@
-polars
-maturin[patchelf]
-ruff
-pytest
-mypy
+polars>=1.42
+maturin[patchelf]==1.16.0
+ruff==0.17.3
+pytest==9.2.0
+mypy==2.4.1

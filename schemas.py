@@ -1,7 +1,5 @@
-from typing import Literal
-
 import polars as pl
-from pyspark.sql.types import StructType, StringType, StructField, IntegerType, LongType, DoubleType
+from pyspark.sql.types import FloatType, IntegerType, LongType, StringType, StructField, StructType
 
 # NOTE: Intentionally read event_time as String to convert to Timestamp
 pd_schema = {
@@ -11,7 +9,7 @@ pd_schema = {
     "category_id": "int64",
     "category_code": "str",
     "brand": "str",
-    "price": "float64",
+    "price": "float32",
     "user_id": "int32",
     "user_session": "str",
 }
@@ -38,7 +36,7 @@ spark_schema = StructType(
         StructField("category_id", LongType(), nullable=False),
         StructField("category_code", StringType(), nullable=False),
         StructField("brand", StringType(), nullable=True),
-        StructField("price", DoubleType(), nullable=False),
+        StructField("price", FloatType(), nullable=False),
         StructField("user_id", IntegerType(), nullable=False),
         StructField("user_session", StringType(), nullable=False),
     ]
@@ -65,17 +63,3 @@ default_schema = {
     "congestion_surcharge": pl.Float32,
     "airport_fee": pl.Float32,
 }
-
-
-def generate_polars_cast(parquet_schema: dict) -> list[pl.Expr]:
-    distinct_fields = {}
-    for key, value in parquet_schema.items():
-        if key == "Airport_fee":
-            key = "airport_fee"
-        if value != default_schema[key]:
-            distinct_fields[key] = default_schema[key]
-
-    parse_list = []
-    for key, value in distinct_fields.items():
-        parse_list.append(pl.col(key).cast(value))
-    return parse_list

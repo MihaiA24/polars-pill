@@ -1,7 +1,7 @@
 import argparse
 
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import broadcast, col, count, desc, hour, lit, mean, unix_timestamp
+from pyspark.sql import SparkSession, Window
+from pyspark.sql.functions import broadcast, col, count, desc, hour, mean, unix_timestamp
 from pyspark.sql.functions import sum as spark_sum
 from pyspark.sql.types import IntegerType, StringType, StructField, StructType
 
@@ -99,9 +99,11 @@ df_with_zones.groupBy("PU_Borough").agg(
     mean("fare_amount").alias("avg_fare"),
     mean("trip_distance").alias("avg_distance"),
     mean("tip_amount").alias("avg_tip"),
-).withColumn("percentage_of_trips", col("trip_count") / lit(8) * 100).orderBy(desc("trip_count")).write.mode(
-    "overwrite"
-).option("header", "true").csv("data/nyc-taxi/out/efficiency_by_borough.csv")
+).withColumn(
+    "percentage_of_trips", col("trip_count") / spark_sum("trip_count").over(Window.partitionBy()) * 100
+).orderBy(desc("trip_count")).write.mode("overwrite").option("header", "true").csv(
+    "data/nyc-taxi/out/efficiency_by_borough.csv"
+)
 
 # Borough dropoff analysis
 
