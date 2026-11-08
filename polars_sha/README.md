@@ -5,6 +5,9 @@ Minimal polars plugin for hash
 This hash function for this demo are taken from polars-hash custom plugin that is more advanced polars plugin:
 https://github.com/ion-elgreco/polars-hash/
 
+The plugin is intended for local demos. CI runs checks only: no PyPI publishing or uploaded
+release artifacts. Build and install it locally with the development commands below.
+
 ## Development
 
 Run from this directory with Rust and Python 3.11+ installed:

@@ -327,12 +327,12 @@ formats, validation/timer isolation, selector behavior, process-tree sampling an
 Root and plugin checks use the same pinned Ruff version.
 CI also checks the report interaction script's syntax with Node.
 
-The [plugin workflow](.github/workflows/publish_to_pypi.yml) builds five native wheel targets
-through one platform matrix and tests seven Python/Polars pairs in a separate runtime matrix.
-Read-only formatting/lint/type checks run once. Use the
-[plugin development commands](polars_sha/README.md#development) to reproduce those checks.
-Actions are SHA-pinned to verified releases; stale PR runs are cancelled without interrupting
-tag publication. Hosted CI does not run full-data or GPU performance benchmarks.
+The [plugin workflow](.github/workflows/plugin_checks.yml) runs read-only formatting/lint/type
+checks once and tests seven Python/Polars pairs. Use the
+[plugin development commands](polars_sha/README.md#development) to reproduce those checks
+and build wheels for local demos. CI does not publish to PyPI or upload release artifacts;
+tag pushes do not trigger the plugin workflow. Actions are SHA-pinned to verified releases,
+and stale PR runs are cancelled. Hosted CI does not run full-data or GPU performance benchmarks.
 
 Check the rebuilt plugin on both supported Polars versions (replace `2.1.0` with `1.44.2`):
 
