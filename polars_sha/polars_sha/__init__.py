@@ -9,7 +9,7 @@ from polars.plugins import register_plugin_function
 from polars_sha._internal import __version__ as __version__
 
 if TYPE_CHECKING:
-    from polars_sha.typing import IntoExprColumn
+    IntoExprColumn = pl.Expr | str | pl.Series
 
 LIB = Path(__file__).parent
 

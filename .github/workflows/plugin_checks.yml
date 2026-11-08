@@ -1,0 +1,80 @@
+name: Plugin checks
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Make sure CI fails on all warnings, including Clippy lints
+env:
+  RUSTFLAGS: "-Dwarnings"
+
+defaults:
+  run:
+    working-directory: polars_sha
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Set up Rust
+        run: rustup show
+      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      - run: make venv
+      - run: .venv/bin/python -m pip install polars==2.1.0
+      - run: make pre-commit
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: sccache
+
+  linux-just-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.11"
+            polars-version: "2.1.0"
+          - python-version: "3.12"
+            polars-version: "2.1.0"
+          - python-version: "3.13"
+            polars-version: "2.1.0"
+          - python-version: "3.14"
+            polars-version: "2.1.0"
+          - python-version: "3.15"
+            polars-version: "2.1.0"
+          - python-version: "3.10"
+            polars-version: "1.42.0"  # plugin minimum; Python 3.10 cannot install Polars 2.1
+          - python-version: "3.12"
+            polars-version: "1.44.2"  # same Polars version as the GPU environment; tests run on CPU
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up Rust
+        run: rustup show
+      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      - run: make venv
+      - run: .venv/bin/python -m pip install polars==${{ matrix.polars-version }}
+      - run: make install
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: sccache
+      - run: make test
+

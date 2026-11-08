@@ -1,46 +1,37 @@
 # polars-pill
-Polars pill NTER
 
+Polars, DuckDB, pandas and Spark benchmark demos.
 
-## Environment setup
+## Setup
 
-Environment of the root project is set with uv [Docs](https://docs.astral.sh/uv/)
+Install [uv](https://docs.astral.sh/uv/).
 
-Install uv running:
+Choose one environment; syncing a group replaces the other:
+
 ```shell
-  # On Mac and Linux
-  curl -LsSf https://astral.sh/uv/install.sh | sh 
-
-  # Windows
-  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+uv sync --locked --group cpu_polars             # Polars 2.1.0, native Iceberg planner, dev tools
+uv sync --locked --group gpu_polars             # Polars 1.44.2, RAPIDS 26.10.2, dev tools
+uv sync --locked --group cpu_polars --no-dev    # CPU benchmark dependencies only
+uv sync --locked --group gpu_polars --no-dev    # GPU benchmark dependencies only
 ```
 
-Sync all packages by running: 
-```shell
-  uv sync --group cpu_polars -U # Install common, dev and cpu_polars packages
-  # If you want to install the gpu_polars packages run:
-  uv sync --group gpu_polars -U # Install common, dev and gpu_polars packages 
-  # For benchmark running use:
-  uv sync --group cpu_polars --no-dev -U # Avoid installing dev packages
-  # Or for GPU:
-  uv sync --group gpu_polars --no-dev -U # Avoid installing dev packages
-```
-## Polars plugin installation
+The Rust plugin is optional and is not installed by the root dependency groups.
+For `Polars_Plugins.ipynb`, build and install its wheel **after** syncing:
 
-To install the polars plugins:
-    1. In the folder polars_sha (plugin folder) run: 
 ```shell
-    make venv # First create the venv or make venv-uv
-    make build-wheel # Make the package as wheel
-```
-. That will build the python wheel in path target/wheels
-    2. Add the dependency in the root folder with uv as: 
-```shell
-    uv add polars_sha/target/wheels/name_of_wheel.whl # Change name_of_wheel.whl with the name of the wheel you just built
+make -C polars_sha venv
+make -C polars_sha build-wheel
+uv pip install --python .venv/bin/python ./polars_sha/target/wheels/polars_sha-0.1.0-cp39-abi3-manylinux_2_34_x86_64.whl
 ```
 
-## Spark setutp
-For Spark 4.0 Java 17 or 21 need to be installed:
+Use the filename emitted by the build on other platforms. Repeat the wheel install after
+each `uv sync`, which removes packages outside the selected dependency groups.
+
+See [RUNBOOK.md](RUNBOOK.md) for benchmark options, CPU fixture checks and cloud setup;
+see [plugin development](polars_sha/README.md#development) for read-only pre-commit checks.
+
+## Spark setup
+For Spark 4.3, Java 17 or 21 needs to be installed:
 ```shell
     brew install temurin@17 # Open JDK 17 Temurin for MacOs via Homebrew
     sudo apt install openjdk-17-jdk # Open JDK 17 for Debian-based Linux
@@ -48,39 +39,27 @@ For Spark 4.0 Java 17 or 21 need to be installed:
 
 ## Benchmarks
 
-These benchmarks are results from running them on a 12-core AMD Ryzen 9900X, 32GB RAM (32 GB SWAP) and a 16GB NVIDIA 5070Ti.
+- Append-only results: [benchmarks.jsonl](benchmarks.jsonl).
+- Results tables and bar charts: [BENCHMARKS.html](BENCHMARKS.html) — open locally in a browser.
+- Run the full matrix with `python3 run_benchmark.py`; each configuration records cold and repeated warm measurements.
+- Polars engines are explicit: eager uses in-memory; lazy runs in-memory and streaming separately.
+- E-commerce and NYC repeat CPU baselines on the GPU-compatible Polars version, separating version changes from GPU acceleration.
+- DuckDB runs equivalent native SQL for e-commerce CSV/Parquet and both NYC query variants.
+- Defaults: one cold attempt, one unrecorded warm-up and five measured warm attempts in the same process.
+- Timed sinks request Snappy; pandas omits its index, and only Spark's small e-commerce result uses one writer.
+- Failed cases do not stop the matrix or report generation, but make the runner exit nonzero.
+- The live terminal dashboard shows phases, commands, progress, timers and recent outcomes.
+  Use `--plain` for raw streaming output; pipes and CI output use that mode automatically.
 
-If you have less than 32GB RAM, yellow trip data may not work due to RAM requirements or take a long amount of time.
+Regenerate the report without running benchmarks (Matplotlib is included in the development group):
 
+```shell
+.venv/bin/python plot_benchmarks.py
+```
 
-| Library          |           Duration (s) | CPU/GPU  | Engine       | Dataset                   | Query        |
-|------------------|------------------------|----------|--------------|---------------------------|--------------| 
-| Pandas           |                  9.714 | CPU      | eager        | data/2019-Oct-20M.csv     | Simple       |
-| Polars eager     |                  0.798 | CPU      | streaming    | data/2019-Oct-20M.csv     | Simple       |
-| Polars eager     |                  1.963 | CPU      | streaming    | data/2019-Oct.csv         | Simple       |
-| Polars eager     |                  0.823 | CPU      | streaming    | data/2019-Oct.parquet     | Simple       |
-| Polars lazy      |                  0.694 | CPU      | streaming    | data/2019-Oct.csv         | Simple       |
-| Polars lazy      |                  0.195 | CPU      | streaming    | data/2019-Oct.parquet     | Simple       |
-| PySpark          |    6.214 (Init: 8.209) | CPU      | lazy         | data/2019-Oct.csv         | Simple       |
-| PySpark          |    4.432 (Init: 6.145) | CPU      | lazy         | data/2019-Oct.parquet     | Simple       |
-| Polars           |                  1.369 | CPU      | in-memory    | nyc-green                 | simple       |
-| Polars           |                  4.516 | CPU      | in-memory    | nyc-green                 | complex      |
-| Polars           |                  0.373 | CPU      | streaming    | nyc-green                 | simple       |
-| Polars           |                  2.076 | CPU      | streaming    | nyc-green                 | complex      |
-| PySpark          |    3.243 (Init: 5.198) | CPU      | lazy         | nyc-green                 | simple       |
-| PySpark          |    7.915 (Init: 9.546) | CPU      | lazy         | nyc-green                 | complex      |
-| Polars           |                 79.529 | CPU      | in-memory    | nyc-yellow                | simple       |
-| Polars           |   ***(Crashed process) | CPU      | in-memory    | nyc-yellow                | simple       |
-| Polars           |                  3.820 | CPU      | streaming    | nyc-yellow                | simple       |
-| Polars           |                 64.270 | CPU      | streaming    | nyc-yellow                | complex      |
-| PySpark          |   9.533 (Init: 11.589) | CPU      | lazy         | nyc-yellow                | simple       |
-| PySpark          |  33.131 (Init: 35.056) | CPU      | lazy         | nyc-yellow                | complex      |
-| Polars           |                  0.869 | GPU      | in-memory    | nyc-green                 | simple       |
-| Polars           |                  0.672 | GPU      | in-memory    | nyc-green                 | complex      |
-| Polars           |                  0.592 | GPU      | streaming    | nyc-green                 | simple       |
-| Polars           |                  0.787 | GPU      | streaming    | nyc-green                 | complex      |
-| Polars           |         Error (memory) | GPU      | in-memory    | nyc-yellow                | simple       |
-| Polars           |         Error (memory) | GPU      | in-memory    | nyc-yellow                | complex      |
-| Polars           |                  4.983 | GPU      | streaming    | nyc-yellow                | simple       |
-| Polars           |                  6.212 | GPU      | streaming    | nyc-yellow                | complex      |
+Both environments use DuckDB 2.0.0, pandas 3.1.1, PyArrow 26.0.1 and PySpark 4.3.0.
+Each recorded run includes its library version.
+
+E-commerce `price` inputs use Float32 across all four libraries, matching existing Parquet files;
+no data regeneration is needed.
 
